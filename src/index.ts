@@ -19,6 +19,10 @@ import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 // Import routes
 import healthRoutes from './routes/health.routes';
 import authRoutes from './routes/auth.routes';
+import reportRoutes from './routes/report.routes';
+import actionRoutes from './routes/action.routes';
+import commentRoutes from './routes/comment.routes';
+import uploadRoutes from './routes/upload.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
@@ -61,6 +65,10 @@ app.use('/api/', limiter);
 // ---- Routes ----
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/actions', actionRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // ---- Root Route ----
 app.get('/', (_req, res) => {

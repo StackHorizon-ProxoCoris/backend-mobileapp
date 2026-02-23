@@ -12,7 +12,8 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error(' SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib diisi di .env');
+  // Logger belum bisa dipakai di sini karena circular, pakai console langsung
+  console.error('\x1b[31m[ERROR]\x1b[0m SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib diisi di .env');
   process.exit(1);
 }
 

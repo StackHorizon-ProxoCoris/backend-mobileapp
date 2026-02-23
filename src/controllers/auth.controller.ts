@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
+import { logger } from '../config/logger';
 import { RegisterRequest, LoginRequest, AuthResponse, ApiResponse } from '../types';
 
 /**
@@ -85,7 +86,7 @@ export const register = async (
       });
 
     if (metaError) {
-      console.error(' Gagal menyimpan metadata user:', metaError.message);
+      logger.warn('Gagal menyimpan metadata user:', metaError.message);
       // User sudah terbuat di Auth, jadi kita tetap lanjut
     }
 
@@ -107,7 +108,7 @@ export const register = async (
       },
     });
   } catch (err) {
-    console.error('❌ Register error:', err);
+    logger.error('Register:', err);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan saat registrasi.',
@@ -169,7 +170,7 @@ export const login = async (
       },
     });
   } catch (err) {
-    console.error('❌ Login error:', err);
+    logger.error('Login:', err);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan saat login.',
@@ -237,7 +238,7 @@ export const getMe = async (
       },
     });
   } catch (err) {
-    console.error('❌ GetMe error:', err);
+    logger.error('GetMe:', err);
     res.status(500).json({
       success: false,
       message: 'Gagal mengambil data profil.',
@@ -258,8 +259,7 @@ export const logout = async (
     const token = authHeader?.split(' ')[1];
 
     if (token) {
-      // Invalidate session di Supabase (opsional, token tetap expired secara alami)
-      // Supabase Auth JWT biasanya 1 jam
+      // Invalidate session di Supabase 
     }
 
     res.status(200).json({
@@ -267,7 +267,7 @@ export const logout = async (
       message: 'Berhasil logout.',
     });
   } catch (err) {
-    console.error('❌ Logout error:', err);
+    logger.error('Logout:', err);
     res.status(500).json({
       success: false,
       message: 'Gagal logout.',

@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../types';
 import { config } from '../config/env';
+import { logger } from '../config/logger';
 
 /**
  * Middleware error handler global
@@ -17,9 +18,9 @@ export const errorHandler = (
   res: Response<ApiResponse>,
   _next: NextFunction
 ): void => {
-  console.error(' Error:', err.message);
+  logger.error(err.message);
   if (config.isDev) {
-    console.error(err.stack);
+    logger.debug('Stack trace:', err.stack);
   }
 
   res.status(500).json({
