@@ -28,6 +28,9 @@ import feedbackRoutes from './routes/feedback.routes';
 import notificationRoutes from './routes/notification.routes';
 import budgetRoutes from './routes/budget.routes';
 import chatRoutes from './routes/chat.routes';
+import areaStatusRoutes from './routes/area-status.routes';
+import infoRoutes from './routes/info.routes';
+import bookmarkRoutes from './routes/bookmark.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
@@ -79,6 +82,9 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/budget', budgetRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/area-status', areaStatusRoutes);
+app.use('/api/info', infoRoutes);
+app.use('/api/bookmarks', bookmarkRoutes);
 
 // ---- Root Route ----
 app.get('/', (_req, res) => {
