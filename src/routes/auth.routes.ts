@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import { register, login, getMe, logout } from '../controllers/auth.controller';
+import { register, login, getMe, updateProfile, logout } from '../controllers/auth.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validateRequired, validateEmail, validatePassword } from '../middleware/validate.middleware';
 
@@ -28,6 +28,9 @@ router.post(
 
 // GET /api/auth/me — Ambil profil user (perlu token)
 router.get('/me', authMiddleware, getMe);
+
+// PATCH /api/auth/profile — Update profil user (perlu token)
+router.patch('/profile', authMiddleware, updateProfile);
 
 // POST /api/auth/logout — Logout (perlu token)
 router.post('/logout', authMiddleware, logout);

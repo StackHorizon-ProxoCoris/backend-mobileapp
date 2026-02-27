@@ -247,6 +247,102 @@ export const getMe = async (
 };
 
 /**
+ * PATCH /api/auth/profile
+ * Update profil user yang sedang login
+ * Memerlukan auth middleware
+ */
+export const updateProfile = async (
+  req: Request,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'User tidak terautentikasi.',
+      });
+      return;
+    }
+
+    const { fullName, email, phone, bio, district, city } = req.body;
+
+    // Build update object — hanya field yang dikirim
+    const updates: Record<string, any> = {};
+    if (fullName !== undefined) {
+      updates.full_name = fullName;
+      updates.initials = fullName
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (email !== undefined) updates.email = email;
+    if (phone !== undefined) updates.phone = phone;
+    if (bio !== undefined) updates.bio = bio;
+    if (district !== undefined) updates.district = district;
+    if (city !== undefined) updates.city = city;
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Tidak ada data yang diperbarui.',
+      });
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('users_metadata')
+      .update(updates)
+      .eq('auth_id', req.user.id)
+      .select('*')
+      .single();
+
+    if (error) {
+      logger.error('UpdateProfile:', error.message);
+      res.status(500).json({
+        success: false,
+        message: 'Gagal memperbarui profil.',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Profil berhasil diperbarui.',
+      data: {
+        id: data.id,
+        authId: data.auth_id,
+        fullName: data.full_name,
+        initials: data.initials,
+        email: data.email,
+        phone: data.phone,
+        bio: data.bio,
+        location: {
+          district: data.district,
+          city: data.city,
+          province: data.province,
+          lat: data.lat,
+          lng: data.lng,
+        },
+        ecoPoints: data.eco_points,
+        currentBadge: data.current_badge,
+        totalReports: data.total_reports,
+        totalActions: data.total_actions,
+        rank: data.rank,
+        joinedDate: data.created_at,
+      },
+    });
+  } catch (err) {
+    logger.error('UpdateProfile:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal memperbarui profil.',
+    });
+  }
+};
+
+/**
  * POST /api/auth/logout
  * Logout user — invalidate session di Supabase
  */
