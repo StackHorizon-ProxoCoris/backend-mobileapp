@@ -196,6 +196,107 @@ export const getActionById = async (
 };
 
 // ============================================================
+// Join / Leave Action
+// ============================================================
+
+/**
+ * POST /api/actions/:id/join
+ * Gabung ke aksi positif
+ */
+export const joinAction = async (
+  req: Request<{ id: string }>,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Silakan login terlebih dahulu.' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    // Cek action ada
+    const { data: action } = await supabaseAdmin
+      .from('actions').select('id, total_participants, max_participants').eq('id', id).single();
+    if (!action) {
+      res.status(404).json({ success: false, message: 'Aksi tidak ditemukan.' });
+      return;
+    }
+
+    // Cek kapasitas
+    if (action.max_participants > 0 && action.total_participants >= action.max_participants) {
+      res.status(400).json({ success: false, message: 'Aksi sudah penuh, tidak bisa bergabung.' });
+      return;
+    }
+
+    // Cek duplikat
+    const { data: existing } = await supabaseAdmin
+      .from('action_participants').select('id').eq('action_id', id).eq('user_id', req.user.id).single();
+    if (existing) {
+      res.status(409).json({ success: false, message: 'Anda sudah bergabung di aksi ini.' });
+      return;
+    }
+
+    // Insert participant
+    await supabaseAdmin.from('action_participants').insert({ action_id: id, user_id: req.user.id });
+
+    // Increment total_participants
+    const newCount = (action.total_participants || 0) + 1;
+    await supabaseAdmin.from('actions').update({ total_participants: newCount }).eq('id', id);
+
+    res.status(201).json({
+      success: true,
+      message: 'Berhasil bergabung ke aksi!',
+      data: { totalParticipants: newCount },
+    });
+  } catch (err) {
+    logger.error('joinAction:', err);
+    res.status(500).json({ success: false, message: 'Gagal bergabung ke aksi.' });
+  }
+};
+
+/**
+ * DELETE /api/actions/:id/join
+ * Keluar dari aksi positif
+ */
+export const leaveAction = async (
+  req: Request<{ id: string }>,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Silakan login terlebih dahulu.' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    // Hapus participant
+    const { error } = await supabaseAdmin
+      .from('action_participants').delete().eq('action_id', id).eq('user_id', req.user.id);
+
+    if (error) {
+      res.status(400).json({ success: false, message: 'Gagal keluar dari aksi.' });
+      return;
+    }
+
+    // Decrement total_participants
+    const { data: action } = await supabaseAdmin
+      .from('actions').select('total_participants').eq('id', id).single();
+    if (action) {
+      await supabaseAdmin.from('actions')
+        .update({ total_participants: Math.max(0, (action.total_participants || 0) - 1) })
+        .eq('id', id);
+    }
+
+    res.status(200).json({ success: true, message: 'Berhasil keluar dari aksi.' });
+  } catch (err) {
+    logger.error('leaveAction:', err);
+    res.status(500).json({ success: false, message: 'Gagal keluar dari aksi.' });
+  }
+};
+
+// ============================================================
 // Helper — Format data dari Supabase ke response
 // ============================================================
 

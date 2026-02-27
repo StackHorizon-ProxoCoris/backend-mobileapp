@@ -10,6 +10,7 @@ import {
   getNearbyReports,
   toggleVote,
   updateReportStatus,
+  verifyReport,
 } from '../controllers/report.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validateRequired } from '../middleware/validate.middleware';
@@ -43,5 +44,8 @@ router.patch(
   validateRequired(['status']),
   updateReportStatus
 );
+
+// POST /api/reports/:id/verify — Verifikasi laporan (perlu login)
+router.post('/:id/verify', authMiddleware, verifyReport);
 
 export default router;

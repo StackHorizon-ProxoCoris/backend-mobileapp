@@ -410,6 +410,68 @@ export const updateReportStatus = async (
 // Helper — Format data dari Supabase ke response
 // ============================================================
 
+/**
+ * POST /api/reports/:id/verify
+ * Verifikasi laporan oleh user
+ */
+export const verifyReport = async (
+  req: Request<{ id: string }>,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Silakan login terlebih dahulu.' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    // Cek report ada
+    const { data: report } = await supabaseAdmin
+      .from('reports').select('id, verified_count, status').eq('id', id).single();
+    if (!report) {
+      res.status(404).json({ success: false, message: 'Laporan tidak ditemukan.' });
+      return;
+    }
+
+    // Cek duplikat
+    const { data: existing } = await supabaseAdmin
+      .from('report_verifications')
+      .select('id')
+      .eq('report_id', id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (existing) {
+      res.status(409).json({ success: false, message: 'Anda sudah memverifikasi laporan ini.' });
+      return;
+    }
+
+    // Insert verification
+    await supabaseAdmin.from('report_verifications').insert({ report_id: id, user_id: req.user.id });
+
+    // Increment verified_count
+    const newCount = (report.verified_count || 0) + 1;
+    const updateData: Record<string, any> = { verified_count: newCount };
+
+    // Auto-promote status jika cukup verifikasi
+    if (newCount >= 3 && report.status === 'Menunggu') {
+      updateData.status = 'Diverifikasi';
+    }
+
+    await supabaseAdmin.from('reports').update(updateData).eq('id', id);
+
+    res.status(201).json({
+      success: true,
+      message: 'Laporan berhasil diverifikasi!',
+      data: { verifiedCount: newCount, statusUpdated: newCount >= 3 && report.status === 'Menunggu' },
+    });
+  } catch (err) {
+    logger.error('verifyReport:', err);
+    res.status(500).json({ success: false, message: 'Gagal memverifikasi laporan.' });
+  }
+};
+
 function formatReport(row: any): ReportResponse {
   return {
     id: row.id,
