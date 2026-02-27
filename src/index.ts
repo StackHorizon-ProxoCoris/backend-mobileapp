@@ -25,6 +25,7 @@ import commentRoutes from './routes/comment.routes';
 import uploadRoutes from './routes/upload.routes';
 import activityRoutes from './routes/activity.routes';
 import feedbackRoutes from './routes/feedback.routes';
+import notificationRoutes from './routes/notification.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
@@ -73,6 +74,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ---- Root Route ----
 app.get('/', (_req, res) => {
