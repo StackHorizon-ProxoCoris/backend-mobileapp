@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import { register, login, getMe, updateProfile, logout } from '../controllers/auth.controller';
+import { register, login, getMe, updateProfile, logout, updateSettings, changePassword } from '../controllers/auth.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validateRequired, validateEmail, validatePassword } from '../middleware/validate.middleware';
 
@@ -31,6 +31,12 @@ router.get('/me', authMiddleware, getMe);
 
 // PATCH /api/auth/profile — Update profil user (perlu token)
 router.patch('/profile', authMiddleware, updateProfile);
+
+// PATCH /api/auth/settings — Update settings user (perlu token)
+router.patch('/settings', authMiddleware, updateSettings);
+
+// POST /api/auth/change-password — Ubah password (perlu token)
+router.post('/change-password', authMiddleware, validateRequired(['currentPassword', 'newPassword']), changePassword);
 
 // POST /api/auth/logout — Logout (perlu token)
 router.post('/logout', authMiddleware, logout);

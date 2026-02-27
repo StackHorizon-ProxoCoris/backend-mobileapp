@@ -211,6 +211,48 @@ export const getMe = async (
       return;
     }
 
+    // --- Hitung rank (posisi berdasarkan eco_points, descending) ---
+    const { count: higherCount } = await supabaseAdmin
+      .from('users_metadata')
+      .select('id', { count: 'exact', head: true })
+      .gt('eco_points', data.eco_points || 0);
+    const rank = (higherCount ?? 0) + 1;
+
+    // --- Hitung weeklyPoints (aktivitas minggu ini) ---
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    monday.setHours(0, 0, 0, 0);
+    const mondayISO = monday.toISOString();
+
+    const { data: weekActivities } = await supabaseAdmin
+      .from('activities')
+      .select('points')
+      .eq('user_id', req.user.id)
+      .gte('created_at', mondayISO);
+
+    const weeklyPoints = (weekActivities || []).reduce(
+      (sum: number, a: any) => sum + (a.points || 0), 0
+    );
+
+    // --- Badge definitions berdasarkan threshold ---
+    const BADGE_DEFS = [
+      { icon: 'Medal', color: '#f59e0b', bg: '#fef3c7', border: '#fde68a', label: 'Warga Peduli', threshold: 0 },
+      { icon: 'Star', color: '#3b82f6', bg: '#dbeafe', border: '#bfdbfe', label: 'Relawan Aktif', threshold: 50 },
+      { icon: 'ShieldCheck', color: '#059669', bg: '#d1fae5', border: '#a7f3d0', label: 'Pelapor Handal', threshold: 150 },
+      { icon: 'Trophy', color: '#7c3aed', bg: '#ede9fe', border: '#ddd6fe', label: 'Top Contributor', threshold: 300 },
+      { icon: 'Crown', color: '#ec4899', bg: '#fce7f3', border: '#fbcfe8', label: 'Pahlawan Komunitas', threshold: 500 },
+      { icon: 'Target', color: '#ea580c', bg: '#fff7ed', border: '#fed7aa', label: '100 Hari Streak', threshold: 1000 },
+    ];
+
+    const userPoints = data.eco_points || 0;
+    const badges = BADGE_DEFS.map(b => ({
+      ...b,
+      active: userPoints >= b.threshold,
+    }));
+    const activeBadgeCount = badges.filter(b => b.active).length;
+
     res.status(200).json({
       success: true,
       message: 'Profil berhasil diambil.',
@@ -221,7 +263,7 @@ export const getMe = async (
         initials: data.initials,
         email: data.email,
         phone: data.phone,
-        bio: data.bio,
+        bio: data.bio || '',
         location: {
           district: data.district,
           city: data.city,
@@ -233,7 +275,11 @@ export const getMe = async (
         currentBadge: data.current_badge,
         totalReports: data.total_reports,
         totalActions: data.total_actions,
-        rank: data.rank,
+        rank,
+        weeklyPoints,
+        badges,
+        badgeCount: { active: activeBadgeCount, total: BADGE_DEFS.length },
+        settings: data.settings || {},
         joinedDate: data.created_at,
       },
     });
@@ -368,5 +414,119 @@ export const logout = async (
       success: false,
       message: 'Gagal logout.',
     });
+  }
+};
+
+/**
+ * PATCH /api/auth/settings
+ * Update settings (jsonb) user
+ * Body: { pushNotification, peringatanBencana, updateLaporan, aktivitasKomunitas, modeGelap, lokasiOtomatis, kunciBiometrik }
+ */
+export const updateSettings = async (
+  req: Request,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'User tidak terautentikasi.' });
+      return;
+    }
+
+    const settings = req.body;
+    if (!settings || typeof settings !== 'object') {
+      res.status(400).json({ success: false, message: 'Data settings tidak valid.' });
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('users_metadata')
+      .update({ settings })
+      .eq('auth_id', req.user.id)
+      .select('settings')
+      .single();
+
+    if (error) {
+      logger.error('updateSettings:', error.message);
+      res.status(500).json({ success: false, message: 'Gagal menyimpan pengaturan.' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Pengaturan berhasil disimpan.',
+      data: { settings: data.settings },
+    });
+  } catch (err) {
+    logger.error('updateSettings:', err);
+    res.status(500).json({ success: false, message: 'Gagal menyimpan pengaturan.' });
+  }
+};
+
+/**
+ * POST /api/auth/change-password
+ * Ubah password user
+ * Body: { currentPassword, newPassword }
+ */
+export const changePassword = async (
+  req: Request,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'User tidak terautentikasi.' });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ success: false, message: 'Password lama dan baru wajib diisi.' });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      res.status(400).json({ success: false, message: 'Password baru minimal 8 karakter.' });
+      return;
+    }
+
+    // Ambil email user
+    const { data: meta } = await supabaseAdmin
+      .from('users_metadata')
+      .select('email')
+      .eq('auth_id', req.user.id)
+      .single();
+
+    if (!meta?.email) {
+      res.status(404).json({ success: false, message: 'Data user tidak ditemukan.' });
+      return;
+    }
+
+    // Verifikasi password lama dengan Supabase signIn
+    const { error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+      email: meta.email,
+      password: currentPassword,
+    });
+
+    if (signInError) {
+      res.status(401).json({ success: false, message: 'Password lama salah.' });
+      return;
+    }
+
+    // Update password via Admin API
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      req.user.id,
+      { password: newPassword }
+    );
+
+    if (updateError) {
+      logger.error('changePassword:', updateError.message);
+      res.status(500).json({ success: false, message: 'Gagal mengubah password.' });
+      return;
+    }
+
+    res.status(200).json({ success: true, message: 'Password berhasil diubah!' });
+  } catch (err) {
+    logger.error('changePassword:', err);
+    res.status(500).json({ success: false, message: 'Gagal mengubah password.' });
   }
 };
