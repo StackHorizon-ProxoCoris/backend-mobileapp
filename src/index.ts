@@ -26,6 +26,8 @@ import uploadRoutes from './routes/upload.routes';
 import activityRoutes from './routes/activity.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import notificationRoutes from './routes/notification.routes';
+import budgetRoutes from './routes/budget.routes';
+import chatRoutes from './routes/chat.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
@@ -75,6 +77,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/budget', budgetRoutes);
+app.use('/api/chat', chatRoutes);
 
 // ---- Root Route ----
 app.get('/', (_req, res) => {
