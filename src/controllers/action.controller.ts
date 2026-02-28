@@ -28,6 +28,12 @@ export const createAction = async (
       date, duration, points, maxParticipants, photoUrls,
     } = req.body;
 
+    // Validasi koordinat — tolak jika kosong
+    if (lat == null || lng == null || (typeof lat !== 'number') || (typeof lng !== 'number')) {
+      res.status(400).json({ success: false, message: 'Lokasi aksi wajib diisi dengan koordinat yang valid.' });
+      return;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('actions')
       .insert({

@@ -70,7 +70,7 @@ export const getActivities = async (
     const { data: reports } = await supabaseAdmin
       .from('reports')
       .select('id, title, category, status, description, created_at')
-      .eq('reporter_id', userId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -100,7 +100,7 @@ export const getActivities = async (
     const { data: actions } = await supabaseAdmin
       .from('actions')
       .select('id, title, type, status, description, created_at')
-      .eq('creator_id', userId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(20);
 

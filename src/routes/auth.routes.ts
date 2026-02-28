@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import { register, login, getMe, updateProfile, logout, updateSettings, changePassword } from '../controllers/auth.controller';
+import { register, login, getMe, updateProfile, logout, updateSettings, changePassword, forgotPassword } from '../controllers/auth.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validateRequired, validateEmail, validatePassword } from '../middleware/validate.middleware';
 
@@ -40,5 +40,8 @@ router.post('/change-password', authMiddleware, validateRequired(['currentPasswo
 
 // POST /api/auth/logout — Logout (perlu token)
 router.post('/logout', authMiddleware, logout);
+
+// POST /api/auth/forgot-password — Kirim email reset password (tidak perlu login)
+router.post('/forgot-password', validateRequired(['email']), validateEmail, forgotPassword);
 
 export default router;

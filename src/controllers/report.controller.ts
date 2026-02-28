@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
 import { ApiResponse, CreateReportRequest, ReportResponse } from '../types';
+import { createNotification, createBulkNotifications, getUsersInRadius, getGovUserIds } from '../services/notification.service';
 
 /**
  * POST /api/reports
@@ -23,6 +24,12 @@ export const createReport = async (
     }
 
     const { category, type, title, description, address, district, city, lat, lng, urgency, photoUrls } = req.body;
+
+    // Validasi koordinat — tolak jika kosong atau masih default hardcoded
+    if (lat == null || lng == null || (typeof lat !== 'number') || (typeof lng !== 'number')) {
+      res.status(400).json({ success: false, message: 'Lokasi laporan wajib diisi dengan koordinat yang valid.' });
+      return;
+    }
 
     const { data, error } = await supabaseAdmin
       .from('reports')
@@ -62,6 +69,36 @@ export const createReport = async (
         .update({ total_reports: (currentMeta.total_reports || 0) + 1 })
         .eq('auth_id', req.user.id);
     }
+
+    // === EVENT GENERATOR: Kirim notifikasi ke warga terdekat + pemerintah ===
+    // Fire-and-forget: tidak block response ke pelapor
+    (async () => {
+      try {
+        // 1. Cari warga dalam radius berdasarkan kategori
+        const nearbyUserIds = await getUsersInRadius(
+          lat, lng, category, district || '', req.user!.id
+        );
+
+        // 2. Ambil semua user pemerintah
+        const govUserIds = await getGovUserIds();
+
+        // 3. Gabung & deduplicate, exclude pelapor sendiri
+        const allRecipients = [...new Set([...nearbyUserIds, ...govUserIds])]
+          .filter(uid => uid !== req.user!.id);
+
+        if (allRecipients.length > 0) {
+          await createBulkNotifications(allRecipients, {
+            type: 'new_report',
+            title: `Laporan Baru: ${category}`,
+            message: `"${title}" — ${address || district || 'Lokasi terdeteksi'}`,
+            refType: 'report',
+            refId: data.id,
+          });
+        }
+      } catch (notifErr) {
+        logger.error('createReport notification trigger error:', notifErr);
+      }
+    })();
 
     res.status(201).json({
       success: true,
@@ -355,6 +392,24 @@ export const toggleVote = async (
       }
 
       res.status(201).json({ success: true, message: 'Terima kasih atas dukungan Anda!' });
+
+      // === NOTIF TRIGGER: Kirim ke pelapor asli (hanya saat upvote) ===
+      (async () => {
+        try {
+          const { data: reportInfo } = await supabaseAdmin
+            .from('reports').select('user_id, title').eq('id', id).single();
+          if (reportInfo && reportInfo.user_id !== req.user!.id) {
+            await createNotification({
+              userId: reportInfo.user_id,
+              type: 'vote',
+              title: 'Laporan Anda Didukung',
+              message: `Seseorang mendukung laporan "${reportInfo.title}".`,
+              refType: 'report',
+              refId: id,
+            });
+          }
+        } catch (e) { logger.error('toggleVote notif error:', e); }
+      })();
     }
   } catch (err) {
     logger.error('toggleVote:', err);
@@ -399,6 +454,24 @@ export const updateReportStatus = async (
       return;
     }
 
+    // === NOTIF TRIGGER: Kirim ke pelapor asli ===
+    (async () => {
+      try {
+        const { data: report } = await supabaseAdmin
+          .from('reports').select('user_id, title').eq('id', id).single();
+        if (report && report.user_id !== req.user!.id) {
+          await createNotification({
+            userId: report.user_id,
+            type: 'status_update',
+            title: 'Status Laporan Diperbarui',
+            message: `Laporan Anda "${report.title}" diubah ke status "${status}".`,
+            refType: 'report',
+            refId: id,
+          });
+        }
+      } catch (e) { logger.error('updateReportStatus notif error:', e); }
+    })();
+
     res.status(200).json({ success: true, message: `Status laporan diubah ke "${status}".` });
   } catch (err) {
     logger.error('updateReportStatus:', err);
@@ -428,7 +501,7 @@ export const verifyReport = async (
 
     // Cek report ada
     const { data: report } = await supabaseAdmin
-      .from('reports').select('id, verified_count, status').eq('id', id).single();
+      .from('reports').select('id, verified_count, status, user_id, title').eq('id', id).single();
     if (!report) {
       res.status(404).json({ success: false, message: 'Laporan tidak ditemukan.' });
       return;
@@ -466,6 +539,22 @@ export const verifyReport = async (
       message: 'Laporan berhasil diverifikasi!',
       data: { verifiedCount: newCount, statusUpdated: newCount >= 3 && report.status === 'Menunggu' },
     });
+
+    // === NOTIF TRIGGER: Kirim ke pelapor asli (skip self-verify) ===
+    (async () => {
+      try {
+        if (report.user_id && report.user_id !== req.user!.id) {
+          await createNotification({
+            userId: report.user_id,
+            type: 'verify',
+            title: 'Laporan Anda Diverifikasi',
+            message: `Seseorang memverifikasi laporan "${report.title || 'Anda'}". Total verifikasi: ${newCount}.`,
+            refType: 'report',
+            refId: id,
+          });
+        }
+      } catch (e) { logger.error('verifyReport notif error:', e); }
+    })();
   } catch (err) {
     logger.error('verifyReport:', err);
     res.status(500).json({ success: false, message: 'Gagal memverifikasi laporan.' });

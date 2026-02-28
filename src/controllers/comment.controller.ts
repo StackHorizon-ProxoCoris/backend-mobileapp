@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
 import { ApiResponse, CreateCommentRequest, CommentResponse } from '../types';
+import { createNotification } from '../services/notification.service';
 
 /**
  * POST /api/comments
@@ -34,7 +35,7 @@ export const addComment = async (
     const tableName = targetType === 'report' ? 'reports' : 'actions';
     const { data: target } = await supabaseAdmin
       .from(tableName)
-      .select('id')
+      .select('id, user_id, title')
       .eq('id', targetId)
       .single();
 
@@ -95,6 +96,22 @@ export const addComment = async (
         user: userData ? { fullName: userData.full_name, initials: userData.initials } : undefined,
       },
     });
+
+    // === NOTIF TRIGGER: Kirim ke pemilik report/action (skip self-comment) ===
+    if (target && target.user_id && target.user_id !== req.user!.id) {
+      (async () => {
+        try {
+          await createNotification({
+            userId: target.user_id,
+            type: 'comment',
+            title: 'Komentar Baru',
+            message: `Seseorang mengomentari ${targetType === 'report' ? 'laporan' : 'aksi'} "${target.title || 'Anda'}".`,
+            refType: targetType as 'report' | 'action',
+            refId: targetId,
+          });
+        } catch (e) { logger.error('addComment notif error:', e); }
+      })();
+    }
   } catch (err) {
     logger.error('addComment:', err);
     res.status(500).json({ success: false, message: 'Gagal menambah komentar.' });

@@ -1,12 +1,12 @@
 -- ============================================================
--- Migration: Create info_articles table
--- Stores articles for Info & Edukasi feature
+-- Migrasi: Buat tabel info_articles
+-- Menyimpan artikel untuk fitur Info & Edukasi
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS info_articles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
-  -- Basic fields
+  -- Field dasar
   type VARCHAR(50) NOT NULL DEFAULT 'BookOpenText',
   title VARCHAR(255) NOT NULL,
   subtitle TEXT DEFAULT '',
@@ -16,29 +16,29 @@ CREATE TABLE IF NOT EXISTS info_articles (
   bg VARCHAR(20) DEFAULT '#eff6ff',
   gradient VARCHAR(20) DEFAULT '#3b82f6',
   
-  -- Content
+  -- Konten
   content JSONB NOT NULL DEFAULT '[]',
   photo_urls JSONB NOT NULL DEFAULT '[]',
   tags JSONB NOT NULL DEFAULT '[]',
   tips JSONB NOT NULL DEFAULT '[]',
   related_links JSONB NOT NULL DEFAULT '[]',
   
-  -- Author
+  -- Penulis
   author_name VARCHAR(100) DEFAULT '',
   author_initials VARCHAR(10) DEFAULT '',
   author_role VARCHAR(100) DEFAULT '',
   author_organization VARCHAR(100) DEFAULT '',
   
-  -- Stats
+  -- Statistik
   stats_views INT DEFAULT 0,
   stats_shares INT DEFAULT 0,
   stats_bookmarks INT DEFAULT 0,
   
-  -- Verification
+  -- Verifikasi
   verified BOOLEAN DEFAULT false,
   verified_by VARCHAR(100) DEFAULT NULL,
   
-  -- Meta
+  -- Metadata
   read_time VARCHAR(20) DEFAULT '3 menit',
   published_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS info_articles (
 );
 
 -- ============================================================
--- Seed Data: 3 sample articles from dummy data
+-- Data Awal: 3 contoh artikel dari data dummy
 -- ============================================================
 
 INSERT INTO info_articles (id, type, title, subtitle, category, source, color, bg, gradient, content, photo_urls, tags, tips, related_links, author_name, author_initials, author_role, author_organization, stats_views, stats_shares, stats_bookmarks, verified, verified_by, read_time, published_at, updated_at)

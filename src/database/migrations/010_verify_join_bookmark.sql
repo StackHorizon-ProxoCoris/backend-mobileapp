@@ -1,8 +1,8 @@
 -- ============================================================
--- Migration: Tables for Verify, Join Action, and Bookmarks
+-- Migrasi: Tabel Verifikasi, Partisipan Aksi, dan Bookmark
 -- ============================================================
 
--- Report Verifications
+-- Verifikasi Laporan
 CREATE TABLE IF NOT EXISTS report_verifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS report_verifications (
   UNIQUE(report_id, user_id)
 );
 
--- Action Participants
+-- Partisipan Aksi
 CREATE TABLE IF NOT EXISTS action_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   action_id UUID NOT NULL REFERENCES actions(id) ON DELETE CASCADE,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS action_participants (
   UNIQUE(action_id, user_id)
 );
 
--- Bookmarks (polymorphic: report, action, info)
+-- Bookmark (polimorfik: laporan, aksi, info)
 CREATE TABLE IF NOT EXISTS bookmarks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,

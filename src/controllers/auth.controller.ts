@@ -546,3 +546,40 @@ export const changePassword = async (
     res.status(500).json({ success: false, message: 'Gagal mengubah password.' });
   }
 };
+
+/**
+ * POST /api/auth/forgot-password
+ * Kirim email reset password via Supabase Auth
+ * Body: { email }
+ */
+export const forgotPassword = async (
+  req: Request,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ success: false, message: 'Email wajib diisi.' });
+      return;
+    }
+
+    // Gunakan Supabase built-in reset password
+    // Tidak set redirectTo karena deep-link belum dikonfigurasi
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email);
+
+    if (error) {
+      logger.error('forgotPassword:', error.message);
+      // Jangan expose detail error ke client untuk keamanan
+    }
+
+    // Selalu return 200 agar attacker tidak bisa enumerasi email
+    res.status(200).json({
+      success: true,
+      message: 'Jika email terdaftar, link reset password telah dikirim ke inbox Anda.',
+    });
+  } catch (err) {
+    logger.error('forgotPassword:', err);
+    res.status(500).json({ success: false, message: 'Gagal mengirim email reset password.' });
+  }
+};
