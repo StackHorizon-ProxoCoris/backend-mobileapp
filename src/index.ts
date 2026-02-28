@@ -3,7 +3,7 @@
 // Express.js + TypeScript + Supabase
 // ============================================================
 
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -34,6 +34,7 @@ import bookmarkRoutes from './routes/bookmark.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
+app.disable('etag');
 
 // ---- Middleware Global ----
 
@@ -69,6 +70,16 @@ const limiter = rateLimit({
   },
 });
 app.use('/api/', limiter);
+
+// Hindari cache untuk endpoint auth + reports agar mobile client selalu dapat data fresh
+const disableApiCache = (_req: Request, res: Response, next: NextFunction): void => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+};
+app.use('/api/auth', disableApiCache);
+app.use('/api/reports', disableApiCache);
 
 // ---- Routes ----
 app.use('/api/health', healthRoutes);
