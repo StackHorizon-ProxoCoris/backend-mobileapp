@@ -4,9 +4,9 @@
 // ============================================================
 
 import { Request, Response } from 'express';
-import { supabaseAdmin } from '../config/supabase';
+import { supabaseAdmin, supabasePublic } from '../config/supabase';
 import { logger } from '../config/logger';
-import { RegisterRequest, LoginRequest, AuthResponse, ApiResponse } from '../types';
+import { RegisterRequest, LoginRequest, AuthResponse, ApiResponse, UserRole } from '../types';
 
 /**
  * POST /api/auth/register
@@ -17,7 +17,9 @@ export const register = async (
   res: Response<AuthResponse>
 ): Promise<void> => {
   try {
-    const { email, password, fullName, phone, location } = req.body;
+    // Whitelist fields register; abaikan field berbahaya dari client (contoh: role)
+    const { email, password, fullName, phone, location } =
+      req.body as RegisterRequest & { role?: unknown };
 
     // 1. Buat user di Supabase Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -68,6 +70,7 @@ export const register = async (
       .from('users_metadata')
       .insert({
         auth_id: authData.user.id,
+        role: 'user',
         full_name: fullName,
         initials,
         email,
@@ -86,13 +89,19 @@ export const register = async (
       });
 
     if (metaError) {
-      logger.warn('Gagal menyimpan metadata user:', metaError.message);
+      logger.warn(
+        `Gagal menyimpan metadata user: code=${metaError.code ?? '-'} message=${metaError.message} details=${metaError.details ?? '-'}`
+      );
       // User sudah terbuat di Auth, jadi kita tetap lanjut
     }
 
     // 3. Login otomatis setelah register untuk mendapatkan token
     const { data: signInData, error: signInError } =
-      await supabaseAdmin.auth.signInWithPassword({ email, password });
+      await supabasePublic.auth.signInWithPassword({ email, password });
+
+    if (signInError) {
+      logger.error(`Register sign-in gagal: ${signInError.message}`);
+    }
 
     res.status(201).json({
       success: true,
@@ -128,7 +137,7 @@ export const login = async (
     const { email, password } = req.body;
 
     // 1. Login via Supabase Auth
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    const { data, error } = await supabasePublic.auth.signInWithPassword({
       email,
       password,
     });
@@ -259,6 +268,7 @@ export const getMe = async (
       data: {
         id: data.id,
         authId: data.auth_id,
+        role: (data.role || 'user') as UserRole,
         fullName: data.full_name,
         initials: data.initials,
         email: data.email,
@@ -310,6 +320,7 @@ export const updateProfile = async (
       return;
     }
 
+    // Whitelist fields profile; field role dari payload diabaikan.
     const { fullName, email, phone, bio, district, city } = req.body;
 
     // Build update object — hanya field yang dikirim
@@ -359,6 +370,7 @@ export const updateProfile = async (
       data: {
         id: data.id,
         authId: data.auth_id,
+        role: (data.role || 'user') as UserRole,
         fullName: data.full_name,
         initials: data.initials,
         email: data.email,
@@ -432,11 +444,15 @@ export const updateSettings = async (
       return;
     }
 
-    const settings = req.body;
-    if (!settings || typeof settings !== 'object') {
+    const rawSettings = req.body;
+    if (!rawSettings || typeof rawSettings !== 'object') {
       res.status(400).json({ success: false, message: 'Data settings tidak valid.' });
       return;
     }
+
+    // Hardening: role bukan bagian settings yang boleh dipersist.
+    const settings = { ...rawSettings } as Record<string, unknown>;
+    if ('role' in settings) delete settings.role;
 
     const { data, error } = await supabaseAdmin
       .from('users_metadata')
@@ -502,7 +518,7 @@ export const changePassword = async (
     }
 
     // Verifikasi password lama dengan Supabase signIn
-    const { error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+    const { error: signInError } = await supabasePublic.auth.signInWithPassword({
       email: meta.email,
       password: currentPassword,
     });
