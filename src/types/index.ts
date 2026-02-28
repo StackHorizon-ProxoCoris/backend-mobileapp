@@ -2,6 +2,9 @@
 // TypeScript Types — Shared Types untuk API
 // ============================================================
 
+// ---- Role Types ----
+export type UserRole = 'user' | 'pemerintah' | 'admin';
+
 // ---- Auth Types ----
 export interface RegisterRequest {
   email: string;
@@ -54,6 +57,7 @@ export interface ApiResponse<T = unknown> {
 export interface UserMetadata {
   id: string;
   authId: string;
+  role: UserRole;
   fullName: string;
   initials: string;
   email: string;
@@ -201,4 +205,19 @@ export interface UploadResponse {
   url: string;
   path: string;
   filename: string;
+}
+
+// ---- Express Request Augmentation ----
+export interface AuthenticatedRequestUser {
+  id: string;
+  email?: string;
+  role?: UserRole;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedRequestUser;
+    }
+  }
 }
