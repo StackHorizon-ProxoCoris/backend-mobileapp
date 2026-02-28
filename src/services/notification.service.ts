@@ -6,6 +6,7 @@
 
 import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
+import { sendPushToUsers } from './push.service';
 
 // ============================================================
 // Tipe & Konstanta
@@ -97,6 +98,14 @@ export async function createNotification(params: CreateNotificationParams): Prom
 
     if (error) {
       logger.error('createNotification insert error:', error.message);
+    } else {
+      // Fire-and-forget: kirim push notification ke perangkat
+      sendPushToUsers(
+        [params.userId],
+        params.title,
+        params.message,
+        { refType: params.refType || null, refId: params.refId || null }
+      ).catch(e => logger.error('createNotification push error:', e));
     }
   } catch (err) {
     logger.error('createNotification exception:', err);
@@ -133,6 +142,14 @@ export async function createBulkNotifications(
       logger.error('createBulkNotifications insert error:', error.message);
     } else {
       logger.info(`Notifikasi dikirim ke ${unique.length} user (type: ${params.type})`);
+
+      // Fire-and-forget: kirim push notification ke semua perangkat
+      sendPushToUsers(
+        unique,
+        params.title,
+        params.message,
+        { refType: params.refType || null, refId: params.refId || null }
+      ).catch(e => logger.error('createBulkNotifications push error:', e));
     }
   } catch (err) {
     logger.error('createBulkNotifications exception:', err);

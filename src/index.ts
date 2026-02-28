@@ -31,6 +31,7 @@ import chatRoutes from './routes/chat.routes';
 import areaStatusRoutes from './routes/area-status.routes';
 import infoRoutes from './routes/info.routes';
 import bookmarkRoutes from './routes/bookmark.routes';
+import deviceTokenRoutes from './routes/device-token.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
@@ -96,6 +97,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/area-status', areaStatusRoutes);
 app.use('/api/info', infoRoutes);
 app.use('/api/bookmarks', bookmarkRoutes);
+app.use('/api/device-tokens', deviceTokenRoutes);
 
 // ---- Root Route ----
 app.get('/', (_req, res) => {
