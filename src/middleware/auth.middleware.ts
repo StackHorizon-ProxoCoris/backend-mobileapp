@@ -5,19 +5,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { supabaseAdmin } from '../config/supabase';
-import { ApiResponse } from '../types';
-
-// Extend Express Request untuk menyimpan data user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email: string;
-      };
-    }
-  }
-}
+import { logger } from '../config/logger';
+import { ApiResponse, UserRole } from '../types';
 
 /**
  * Middleware untuk memverifikasi token Supabase Auth
@@ -39,7 +28,14 @@ export const authMiddleware = async (
       return;
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.slice(7).trim();
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        message: 'Token tidak ditemukan. Silakan login terlebih dahulu.',
+      });
+      return;
+    }
 
     // Verifikasi token menggunakan Supabase Admin
     const { data, error } = await supabaseAdmin.auth.getUser(token);
@@ -48,15 +44,29 @@ export const authMiddleware = async (
       res.status(401).json({
         success: false,
         message: 'Token tidak valid atau sudah kedaluwarsa.',
-        error: error?.message,
       });
       return;
+    }
+
+    // Ambil role dari metadata app (single source of truth), fallback ke "user" (least privilege).
+    let role: UserRole = 'user';
+    const { data: metadata, error: metadataError } = await supabaseAdmin
+      .from('users_metadata')
+      .select('role')
+      .eq('auth_id', data.user.id)
+      .maybeSingle();
+
+    if (metadataError) {
+      logger.warn('authMiddleware: gagal mengambil role user, fallback ke role "user".', metadataError.message);
+    } else if (metadata?.role && ['user', 'pemerintah', 'admin'].includes(metadata.role)) {
+      role = metadata.role as UserRole;
     }
 
     // Simpan data user di request untuk digunakan controller
     req.user = {
       id: data.user.id,
-      email: data.user.email || '',
+      email: data.user.email || undefined,
+      role,
     };
 
     next();

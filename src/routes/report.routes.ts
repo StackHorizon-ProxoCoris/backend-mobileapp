@@ -13,6 +13,7 @@ import {
   verifyReport,
 } from '../controllers/report.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { requireGovRole } from '../middleware/role.middleware';
 import { validateRequired } from '../middleware/validate.middleware';
 
 const router = Router();
@@ -41,6 +42,7 @@ router.post('/:id/vote', authMiddleware, toggleVote);
 router.patch(
   '/:id/status',
   authMiddleware,
+  requireGovRole,
   validateRequired(['status']),
   updateReportStatus
 );
