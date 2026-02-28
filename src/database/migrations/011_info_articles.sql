@@ -107,4 +107,5 @@ VALUES
   'Ir. Bambang Sutopo', 'BS', 'Kepala Bidang Bina Marga', 'Dinas PU Kota Bandung',
   2180, 167, 298, true, 'Dinas PU Kota Bandung', '4 menit',
   '2026-02-18 14:00:00+07', '2026-02-20 09:00:00+07'
-);
+)
+ON CONFLICT (id) DO NOTHING;
