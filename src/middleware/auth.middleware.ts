@@ -78,3 +78,55 @@ export const authMiddleware = async (
     });
   }
 };
+
+/**
+ * Middleware opsional — jika ada token, populate req.user. Jika tidak, lanjut tanpa error.
+ * Digunakan di endpoint publik yang butuh info user tapi tidak wajib login (contoh: getReportById → hasVoted).
+ */
+export const optionalAuthMiddleware = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      next();
+      return;
+    }
+
+    const token = authHeader.slice(7).trim();
+    if (!token) {
+      next();
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data.user) {
+      next();
+      return;
+    }
+
+    let role: UserRole = 'user';
+    const { data: metadata } = await supabaseAdmin
+      .from('users_metadata')
+      .select('role')
+      .eq('auth_id', data.user.id)
+      .maybeSingle();
+
+    if (metadata?.role && ['user', 'pemerintah', 'admin'].includes(metadata.role)) {
+      role = metadata.role as UserRole;
+    }
+
+    req.user = {
+      id: data.user.id,
+      email: data.user.email || undefined,
+      role,
+    };
+
+    next();
+  } catch {
+    // Token gagal diverifikasi — lanjut tanpa user
+    next();
+  }
+};

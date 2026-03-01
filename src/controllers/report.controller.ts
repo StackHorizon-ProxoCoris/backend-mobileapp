@@ -190,10 +190,24 @@ export const getReports = async (
         return;
       }
 
+      const fallbackReports = (fallback.data || []).map(formatReport);
+
+      // Batch check hasVoted di fallback path juga
+      if (req.user && fallbackReports.length > 0) {
+        const reportIds = fallbackReports.map((r: any) => r.id);
+        const { data: votes } = await supabaseAdmin
+          .from('report_votes')
+          .select('report_id')
+          .eq('user_id', req.user.id)
+          .in('report_id', reportIds);
+        const votedSet = new Set((votes || []).map((v: any) => v.report_id));
+        fallbackReports.forEach((r: any) => { r.hasVoted = votedSet.has(r.id); });
+      }
+
       res.status(200).json({
         success: true,
         message: 'Daftar laporan berhasil diambil.',
-        data: (fallback.data || []).map(formatReport),
+        data: fallbackReports,
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -217,6 +231,18 @@ export const getReports = async (
       }
       return formatted;
     });
+
+    // Batch check hasVoted jika user login
+    if (req.user && reports.length > 0) {
+      const reportIds = reports.map((r: any) => r.id);
+      const { data: votes } = await supabaseAdmin
+        .from('report_votes')
+        .select('report_id')
+        .eq('user_id', req.user.id)
+        .in('report_id', reportIds);
+      const votedSet = new Set((votes || []).map((v: any) => v.report_id));
+      reports.forEach((r: any) => { r.hasVoted = votedSet.has(r.id); });
+    }
 
     res.status(200).json({
       success: true,
@@ -409,13 +435,14 @@ export const toggleVote = async (
       // Decrement votes_count
       const { data: report } = await supabaseAdmin
         .from('reports').select('votes_count').eq('id', id).single();
+      const newCount = Math.max(0, (report?.votes_count || 0) - 1);
       if (report) {
         await supabaseAdmin.from('reports')
-          .update({ votes_count: Math.max(0, (report.votes_count || 0) - 1) })
+          .update({ votes_count: newCount })
           .eq('id', id);
       }
 
-      res.status(200).json({ success: true, message: 'Dukungan dihapus.' });
+      res.status(200).json({ success: true, message: 'Dukungan dihapus.', data: { voted: false, votesCount: newCount } });
     } else {
       // Belum vote → tambah (support)
       await supabaseAdmin.from('report_votes').insert({ user_id: req.user.id, report_id: id });
@@ -423,13 +450,14 @@ export const toggleVote = async (
       // Increment votes_count
       const { data: report } = await supabaseAdmin
         .from('reports').select('votes_count').eq('id', id).single();
+      const newCount = (report?.votes_count || 0) + 1;
       if (report) {
         await supabaseAdmin.from('reports')
-          .update({ votes_count: (report.votes_count || 0) + 1 })
+          .update({ votes_count: newCount })
           .eq('id', id);
       }
 
-      res.status(201).json({ success: true, message: 'Terima kasih atas dukungan Anda!' });
+      res.status(201).json({ success: true, message: 'Terima kasih atas dukungan Anda!', data: { voted: true, votesCount: newCount } });
 
       // === NOTIF TRIGGER: Kirim ke pelapor asli (hanya saat upvote) ===
       (async () => {

@@ -13,7 +13,7 @@ import {
   updateReportStatus,
   verifyReport,
 } from '../controllers/report.controller';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware';
 import { requireGovRole } from '../middleware/role.middleware';
 import { validateRequired } from '../middleware/validate.middleware';
 
@@ -25,11 +25,11 @@ router.get('/stats', getReportStats);
 // GET /api/reports/nearby — Laporan terdekat (harus sebelum /:id)
 router.get('/nearby', getNearbyReports);
 
-// GET /api/reports — Daftar semua laporan
-router.get('/', getReports);
+// GET /api/reports — Daftar semua laporan (opsional auth untuk hasVoted)
+router.get('/', optionalAuthMiddleware, getReports);
 
-// GET /api/reports/:id — Detail laporan
-router.get('/:id', getReportById);
+// GET /api/reports/:id — Detail laporan (opsional auth untuk hasVoted)
+router.get('/:id', optionalAuthMiddleware, getReportById);
 
 // POST /api/reports — Buat laporan baru (perlu login)
 router.post(
