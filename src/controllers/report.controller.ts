@@ -112,6 +112,44 @@ export const createReport = async (
 };
 
 /**
+ * GET /api/reports/stats
+ * Mengembalikan agregasi jumlah laporan berdasarkan status
+ */
+export const getReportStats = async (
+  _req: Request,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    // Jalankan 4 query count secara paralel untuk performa optimal
+    const [totalQ, pendingQ, inProgressQ, resolvedQ] = await Promise.all([
+      supabaseAdmin.from('reports').select('id', { count: 'exact', head: true }),
+      supabaseAdmin.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'Menunggu'),
+      supabaseAdmin.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'Ditangani'),
+      supabaseAdmin.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'Selesai'),
+    ]);
+
+    if (totalQ.error) {
+      res.status(400).json({ success: false, message: 'Gagal mengambil statistik laporan.', error: totalQ.error.message });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Statistik laporan berhasil diambil.',
+      data: {
+        total: totalQ.count || 0,
+        pending: pendingQ.count || 0,
+        inProgress: inProgressQ.count || 0,
+        resolved: resolvedQ.count || 0,
+      },
+    });
+  } catch (err) {
+    logger.error('getReportStats:', err);
+    res.status(500).json({ success: false, message: 'Gagal mengambil statistik laporan.' });
+  }
+};
+
+/**
  * GET /api/reports
  * Mengambil daftar laporan dengan filter & pagination
  * Query params: ?category=Banjir&status=Menunggu&page=1&limit=10

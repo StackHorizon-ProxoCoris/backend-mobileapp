@@ -7,6 +7,7 @@ import {
   createReport,
   getReports,
   getReportById,
+  getReportStats,
   getNearbyReports,
   toggleVote,
   updateReportStatus,
@@ -17,6 +18,9 @@ import { requireGovRole } from '../middleware/role.middleware';
 import { validateRequired } from '../middleware/validate.middleware';
 
 const router = Router();
+
+// GET /api/reports/stats — Statistik agregasi laporan (harus sebelum /:id)
+router.get('/stats', getReportStats);
 
 // GET /api/reports/nearby — Laporan terdekat (harus sebelum /:id)
 router.get('/nearby', getNearbyReports);
