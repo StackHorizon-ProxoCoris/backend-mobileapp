@@ -31,6 +31,15 @@ export const createReport = async (
       return;
     }
 
+    // Auto-calculate initial urgency based on category + photos
+    const initialUrgency = calculateUrgency({
+      category,
+      votes_count: 0,
+      verified_count: 0,
+      photos_count: photoUrls?.length || 0,
+      status: 'Menunggu',
+    });
+
     const { data, error } = await supabaseAdmin
       .from('reports')
       .insert({
@@ -44,7 +53,7 @@ export const createReport = async (
         city: city || 'Kota Bandung',
         lat,
         lng,
-        urgency: urgency || 0,
+        urgency: initialUrgency,
         photo_urls: photoUrls || [],
         photos_count: photoUrls?.length || 0,
       })
@@ -432,32 +441,36 @@ export const toggleVote = async (
       // Sudah vote → hapus (unsupport)
       await supabaseAdmin.from('report_votes').delete().eq('id', existingVote.id);
 
-      // Decrement votes_count
+      // Decrement votes_count & recalculate urgency
       const { data: report } = await supabaseAdmin
-        .from('reports').select('votes_count').eq('id', id).single();
+        .from('reports').select('votes_count, verified_count, photos_count, category, status').eq('id', id).single();
       const newCount = Math.max(0, (report?.votes_count || 0) - 1);
+      let urgencyScore = 0;
       if (report) {
+        urgencyScore = calculateUrgency({ ...report, votes_count: newCount });
         await supabaseAdmin.from('reports')
-          .update({ votes_count: newCount })
+          .update({ votes_count: newCount, urgency: urgencyScore })
           .eq('id', id);
       }
 
-      res.status(200).json({ success: true, message: 'Dukungan dihapus.', data: { voted: false, votesCount: newCount } });
+      res.status(200).json({ success: true, message: 'Dukungan dihapus.', data: { voted: false, votesCount: newCount, urgency: urgencyScore } });
     } else {
       // Belum vote → tambah (support)
       await supabaseAdmin.from('report_votes').insert({ user_id: req.user.id, report_id: id });
 
-      // Increment votes_count
+      // Increment votes_count & recalculate urgency
       const { data: report } = await supabaseAdmin
-        .from('reports').select('votes_count').eq('id', id).single();
+        .from('reports').select('votes_count, verified_count, photos_count, category, status').eq('id', id).single();
       const newCount = (report?.votes_count || 0) + 1;
+      let urgencyScore = 0;
       if (report) {
+        urgencyScore = calculateUrgency({ ...report, votes_count: newCount });
         await supabaseAdmin.from('reports')
-          .update({ votes_count: newCount })
+          .update({ votes_count: newCount, urgency: urgencyScore })
           .eq('id', id);
       }
 
-      res.status(201).json({ success: true, message: 'Terima kasih atas dukungan Anda!', data: { voted: true, votesCount: newCount } });
+      res.status(201).json({ success: true, message: 'Terima kasih atas dukungan Anda!', data: { voted: true, votesCount: newCount, urgency: urgencyScore } });
 
       // === NOTIF TRIGGER: Kirim ke pelapor asli (hanya saat upvote) ===
       (async () => {
@@ -509,6 +522,17 @@ export const updateReportStatus = async (
     const updateData: Record<string, any> = { status };
     if (respondedBy) updateData.responded_by = respondedBy;
     if (estimatedCompletion) updateData.estimated_completion = estimatedCompletion;
+
+    // Set urgency ke 0 jika status Selesai, recalculate jika bukan
+    if (status === 'Selesai') {
+      updateData.urgency = 0;
+    } else {
+      const { data: reportData } = await supabaseAdmin
+        .from('reports').select('votes_count, verified_count, photos_count, category').eq('id', id).single();
+      if (reportData) {
+        updateData.urgency = calculateUrgency({ ...reportData, status });
+      }
+    }
 
     const { error } = await supabaseAdmin
       .from('reports')
@@ -567,7 +591,7 @@ export const verifyReport = async (
 
     // Cek report ada
     const { data: report } = await supabaseAdmin
-      .from('reports').select('id, verified_count, status, user_id, title').eq('id', id).single();
+      .from('reports').select('id, verified_count, votes_count, photos_count, category, status, user_id, title').eq('id', id).single();
     if (!report) {
       res.status(404).json({ success: false, message: 'Laporan tidak ditemukan.' });
       return;
@@ -591,7 +615,9 @@ export const verifyReport = async (
 
     // Increment verified_count
     const newCount = (report.verified_count || 0) + 1;
-    const updateData: Record<string, any> = { verified_count: newCount };
+    const newStatus = (newCount >= 3 && report.status === 'Menunggu') ? 'Diverifikasi' : report.status;
+    const newUrgency = calculateUrgency({ ...report, verified_count: newCount, status: newStatus });
+    const updateData: Record<string, any> = { verified_count: newCount, urgency: newUrgency };
 
     // Auto-promote status jika cukup verifikasi
     if (newCount >= 3 && report.status === 'Menunggu') {
@@ -626,6 +652,34 @@ export const verifyReport = async (
     res.status(500).json({ success: false, message: 'Gagal memverifikasi laporan.' });
   }
 };
+
+// ============================================================
+// Urgency Calculator — Dynamic score based on report factors
+// ============================================================
+
+const URGENCY_BASE: Record<string, number> = {
+  'Banjir': 70, 'Longsor': 70, 'Gempa': 70,
+  'Kebakaran': 65, 'Pohon Tumbang': 55,
+  'Jalan Rusak': 40, 'Sampah': 30, 'Lampu Jalan': 25,
+};
+
+function calculateUrgency(report: {
+  category: string;
+  votes_count: number;
+  verified_count: number;
+  photos_count: number;
+  status: string;
+}): number {
+  // Status Selesai = urgency 0
+  if (report.status === 'Selesai') return 0;
+
+  const base = URGENCY_BASE[report.category] || 20;
+  const voteBonus = Math.min((report.votes_count || 0) * 2, 30);
+  const verifyBonus = Math.min((report.verified_count || 0) * 5, 20);
+  const photoBonus = (report.photos_count || 0) > 0 ? 5 : 0;
+
+  return Math.max(0, Math.min(150, base + voteBonus + verifyBonus + photoBonus));
+}
 
 function formatReport(row: any): ReportResponse {
   return {
