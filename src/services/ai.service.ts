@@ -43,7 +43,7 @@ PERAN DAN BATASAN KETAT:
 3. Jawab dalam Bahasa Indonesia yang baik, ramah, dan informatif.
 4. Gunakan emoji secukupnya untuk membuat respons lebih mudah dibaca.
 5. Pada kondisi darurat, selalu sertakan nomor darurat yang relevan.
-6. Jawaban harus ringkas namun komprehensif, maksimal 200 kata.
+6. Jawaban harus lengkap, informatif, dan terstruktur dengan baik.
 7. Jangan pernah mengaku sebagai manusia, selalu katakan kamu adalah asisten AI SIAGA.`;
 
 // ============================================================
@@ -76,7 +76,7 @@ export async function getChatResponse(prompt: string): Promise<string> {
         contents: prompt,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
-          maxOutputTokens: 500,
+          maxOutputTokens: 2048,
           temperature: 0.7,
           topP: 0.9,
         },
