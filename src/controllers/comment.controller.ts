@@ -8,6 +8,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
 import { ApiResponse, CreateCommentRequest, CommentResponse } from '../types';
 import { createNotification } from '../services/notification.service';
+import { addEcoPoints, ECO_POINTS } from '../services/ecopoints.service';
 
 /**
  * POST /api/comments
@@ -74,6 +75,9 @@ export const addComment = async (
         .update({ comments_count: (targetData.comments_count || 0) + 1 })
         .eq('id', targetId);
     }
+
+    // Award eco points for commenting
+    addEcoPoints(req.user.id, ECO_POINTS.ADD_COMMENT, 'add_comment');
 
     // Ambil data user untuk response
     const { data: userData } = await supabaseAdmin

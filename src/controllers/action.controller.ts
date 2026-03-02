@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
 import { ApiResponse, CreateActionRequest, ActionResponse } from '../types';
+import { addEcoPoints, ECO_POINTS } from '../services/ecopoints.service';
 
 /**
  * POST /api/actions
@@ -67,6 +68,9 @@ export const createAction = async (
       message: 'Aksi positif berhasil dibuat! Terus lakukan hal baik ',
       data: formatAction(data),
     });
+
+    // Award eco points for creating an action
+    addEcoPoints(req.user.id, ECO_POINTS.CREATE_ACTION, 'create_action');
   } catch (err) {
     logger.error('createAction:', err);
     res.status(500).json({ success: false, message: 'Gagal membuat aksi.' });

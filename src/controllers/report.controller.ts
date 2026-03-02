@@ -8,6 +8,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
 import { ApiResponse, CreateReportRequest, ReportResponse } from '../types';
 import { createNotification, createBulkNotifications, getUsersInRadius, getGovUserIds } from '../services/notification.service';
+import { addEcoPoints, ECO_POINTS } from '../services/ecopoints.service';
 
 /**
  * POST /api/reports
@@ -78,6 +79,9 @@ export const createReport = async (
         .update({ total_reports: (currentMeta.total_reports || 0) + 1 })
         .eq('auth_id', req.user.id);
     }
+
+    // Award eco points for creating a report
+    addEcoPoints(req.user.id, ECO_POINTS.CREATE_REPORT, 'create_report');
 
     // === EVENT GENERATOR: Kirim notifikasi ke warga terdekat + pemerintah ===
     // Fire-and-forget: tidak block response ke pelapor
@@ -472,6 +476,9 @@ export const toggleVote = async (
 
       res.status(201).json({ success: true, message: 'Terima kasih atas dukungan Anda!', data: { voted: true, votesCount: newCount, urgency: urgencyScore } });
 
+      // Award eco points for voting (upvote only)
+      addEcoPoints(req.user.id, ECO_POINTS.VOTE_REPORT, 'vote_report');
+
       // === NOTIF TRIGGER: Kirim ke pelapor asli (hanya saat upvote) ===
       (async () => {
         try {
@@ -631,6 +638,9 @@ export const verifyReport = async (
       message: 'Laporan berhasil diverifikasi!',
       data: { verifiedCount: newCount, statusUpdated: newCount >= 3 && report.status === 'Menunggu' },
     });
+
+    // Award eco points for verifying a report
+    addEcoPoints(req.user.id, ECO_POINTS.VERIFY_REPORT, 'verify_report');
 
     // === NOTIF TRIGGER: Kirim ke pelapor asli (skip self-verify) ===
     (async () => {
