@@ -12,6 +12,7 @@ import {
   toggleVote,
   updateReportStatus,
   verifyReport,
+  resolveByUser,
 } from '../controllers/report.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware';
 import { requireGovRole } from '../middleware/role.middleware';
@@ -42,7 +43,7 @@ router.post(
 // POST /api/reports/:id/vote — Toggle dukungan (perlu login)
 router.post('/:id/vote', authMiddleware, toggleVote);
 
-// PATCH /api/reports/:id/status — Update status (perlu login)
+// PATCH /api/reports/:id/status — Update status (perlu login, hanya Gov)
 router.patch(
   '/:id/status',
   authMiddleware,
@@ -50,6 +51,9 @@ router.patch(
   validateRequired(['status']),
   updateReportStatus
 );
+
+// PATCH /api/reports/:id/resolve-by-user — Pelapor tutup laporannya sendiri (perlu login)
+router.patch('/:id/resolve-by-user', authMiddleware, resolveByUser);
 
 // POST /api/reports/:id/verify — Verifikasi laporan (perlu login)
 router.post('/:id/verify', authMiddleware, verifyReport);

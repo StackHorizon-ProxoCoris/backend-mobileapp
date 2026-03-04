@@ -1,6 +1,7 @@
 // ============================================================
 // Controller — Area Status (Aggregate Report Stats)
 // Provides area-level statistics from reports data
+// Supports optional ?district= filter for per-area stats
 // ============================================================
 
 import { Request, Response } from 'express';
@@ -8,23 +9,36 @@ import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
 
 /**
- * GET /api/area-status
+ * GET /api/area-status?district=Coblong
  * Mengambil aggregated stats dari reports:
  * - Total laporan aktif (belum selesai)
  * - Response rate (% laporan yang sudah direspons)
  * - Average response time (jam)
  * - Alert level (AMAN / WASPADA / SIAGA / AWAS)
  * - Warning message terbaru dari laporan kritis
+ * - isGlobal flag (true jika district tidak di-supply)
+ *
+ * Query params:
+ *   district — (optional) filter laporan berdasarkan kecamatan user
  */
 export const getAreaStatus = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    // 1. Ambil semua laporan
-    const { data: allReports, error: allError } = await supabaseAdmin
+    const district = (req.query.district as string)?.trim() || '';
+    const isGlobal = !district;
+
+    // 1. Build query — filter by district jika ada
+    let query = supabaseAdmin
       .from('reports')
-      .select('id, status, urgency, category, title, created_at, updated_at, responded_by');
+      .select('id, status, urgency, category, title, district, created_at, updated_at, responded_by');
+
+    if (!isGlobal) {
+      query = query.ilike('district', district);
+    }
+
+    const { data: allReports, error: allError } = await query;
 
     if (allError) {
       logger.error('getAreaStatus - query error:', allError);
@@ -112,6 +126,7 @@ export const getAreaStatus = async (
         warningType,
         warningMessage,
         hasWarning: criticalActiveReports > 0,
+        isGlobal,
       },
     });
   } catch (err) {

@@ -274,6 +274,13 @@ export const getMe = async (
         email: data.email,
         phone: data.phone,
         bio: data.bio || '',
+        // Gov-specific fields
+        nip: data.nip || '',
+        jabatan: data.jabatan || '',
+        instansi: data.instansi || '',
+        unitKerja: data.unit_kerja || '',
+        golongan: data.golongan || '',
+        tmt: data.tmt || '',
         location: {
           district: data.district,
           city: data.city,
@@ -321,7 +328,7 @@ export const updateProfile = async (
     }
 
     // Whitelist fields profile; field role dari payload diabaikan.
-    const { fullName, email, phone, bio, district, city } = req.body;
+    const { fullName, email, phone, bio, district, city, province, nip, jabatan, instansi, unitKerja, golongan, tmt } = req.body;
 
     // Build update object — hanya field yang dikirim
     const updates: Record<string, any> = {};
@@ -339,6 +346,14 @@ export const updateProfile = async (
     if (bio !== undefined) updates.bio = bio;
     if (district !== undefined) updates.district = district;
     if (city !== undefined) updates.city = city;
+    if (province !== undefined) updates.province = province;
+    // Gov-specific fields
+    if (nip !== undefined) updates.nip = nip;
+    if (jabatan !== undefined) updates.jabatan = jabatan;
+    if (instansi !== undefined) updates.instansi = instansi;
+    if (unitKerja !== undefined) updates.unit_kerja = unitKerja;
+    if (golongan !== undefined) updates.golongan = golongan;
+    if (tmt !== undefined) updates.tmt = tmt;
 
     if (Object.keys(updates).length === 0) {
       res.status(400).json({
@@ -376,6 +391,13 @@ export const updateProfile = async (
         email: data.email,
         phone: data.phone,
         bio: data.bio,
+        // Gov-specific fields
+        nip: data.nip || '',
+        jabatan: data.jabatan || '',
+        instansi: data.instansi || '',
+        unitKerja: data.unit_kerja || '',
+        golongan: data.golongan || '',
+        tmt: data.tmt || '',
         location: {
           district: data.district,
           city: data.city,

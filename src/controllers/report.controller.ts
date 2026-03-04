@@ -663,6 +663,91 @@ export const verifyReport = async (
   }
 };
 
+/**
+ * PATCH /api/reports/:id/resolve-by-user
+ * Pelapor menutup laporannya sendiri (masalah sudah teratasi)
+ * Validasi: req.user.id === report.user_id DAN status !== 'Selesai'
+ */
+export const resolveByUser = async (
+  req: Request<{ id: string }>,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Silakan login terlebih dahulu.' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    // 1. Ambil laporan dan cek kepemilikan
+    const { data: report, error } = await supabaseAdmin
+      .from('reports')
+      .select('id, user_id, status, title, category')
+      .eq('id', id)
+      .single();
+
+    if (error || !report) {
+      res.status(404).json({ success: false, message: 'Laporan tidak ditemukan.' });
+      return;
+    }
+
+    // 2. Validasi ownership — HANYA pelapor asli
+    if (report.user_id !== req.user.id) {
+      res.status(403).json({ success: false, message: 'Anda bukan pelapor dari laporan ini.' });
+      return;
+    }
+
+    // 3. Validasi status — tidak bisa tutup yang sudah selesai
+    if (report.status === 'Selesai') {
+      res.status(400).json({ success: false, message: 'Laporan ini sudah berstatus Selesai.' });
+      return;
+    }
+
+    // 4. Update status ke Selesai + urgency ke 0
+    const { error: updateError } = await supabaseAdmin
+      .from('reports')
+      .update({
+        status: 'Selesai',
+        urgency: 0,
+        responded_by: 'Diselesaikan oleh pelapor',
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      res.status(400).json({ success: false, message: 'Gagal menutup laporan.', error: updateError.message });
+      return;
+    }
+
+    // 5. Award eco points for resolving own report
+    addEcoPoints(req.user.id, ECO_POINTS.CREATE_REPORT, 'resolve_own_report');
+
+    // 6. Notif ke gov users (fire-and-forget)
+    (async () => {
+      try {
+        const govUserIds = await getGovUserIds();
+        if (govUserIds.length > 0) {
+          await createBulkNotifications(govUserIds, {
+            type: 'status_update',
+            title: 'Laporan Ditutup oleh Pelapor',
+            message: `Pelapor menandai "${report.title}" sebagai selesai.`,
+            refType: 'report',
+            refId: id,
+          });
+        }
+      } catch (e) { logger.error('resolveByUser notif error:', e); }
+    })();
+
+    res.status(200).json({
+      success: true,
+      message: 'Laporan berhasil ditandai selesai. Terima kasih atas update-nya!',
+    });
+  } catch (err) {
+    logger.error('resolveByUser:', err);
+    res.status(500).json({ success: false, message: 'Gagal menutup laporan.' });
+  }
+};
+
 // ============================================================
 // Urgency Calculator — Dynamic score based on report factors
 // ============================================================

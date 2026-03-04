@@ -61,10 +61,12 @@ if (config.isDev) {
   app.use(morgan('combined'));
 }
 
-// Rate limiting: batasi 100 request per 15 menit per IP
+// Rate limiting: batasi request per 15 menit per IP
+// Dev: 1000 req (app fires ~7 concurrent calls per page load)
+// Prod: 200 req (lebih ketat tapi masih cukup untuk usage normal)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: config.isDev ? 1000 : 200,
   message: {
     success: false,
     message: 'Terlalu banyak request. Coba lagi dalam 15 menit.',

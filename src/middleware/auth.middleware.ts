@@ -68,7 +68,7 @@ export const authMiddleware = async (
       email: data.user.email || undefined,
       role,
     };
-
+    
     next();
   } catch (err) {
     res.status(500).json({
@@ -81,7 +81,7 @@ export const authMiddleware = async (
 
 /**
  * Middleware opsional — jika ada token, populate req.user. Jika tidak, lanjut tanpa error.
- * Digunakan di endpoint publik yang butuh info user tapi tidak wajib login (contoh: getReportById → hasVoted).
+ * Digunakan di endpoint publik yang butuh info user tapi tidak wajib login (contoh: getReportById --> hasVoted).
  */
 export const optionalAuthMiddleware = async (
   req: Request,
