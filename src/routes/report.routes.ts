@@ -8,6 +8,7 @@ import {
   getReports,
   getReportById,
   getReportStats,
+  getMapMarkers,
   getNearbyReports,
   toggleVote,
   updateReportStatus,
@@ -25,6 +26,9 @@ router.get('/stats', getReportStats);
 
 // GET /api/reports/nearby — Laporan terdekat (harus sebelum /:id)
 router.get('/nearby', getNearbyReports);
+
+// GET /api/reports/map-markers — Marker ringan untuk peta (harus sebelum /:id)
+router.get('/map-markers', getMapMarkers);
 
 // GET /api/reports — Daftar semua laporan (opsional auth untuk hasVoted)
 router.get('/', optionalAuthMiddleware, getReports);

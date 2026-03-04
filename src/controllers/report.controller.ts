@@ -163,6 +163,53 @@ export const getReportStats = async (
 };
 
 /**
+ * GET /api/reports/map-markers
+ * Endpoint ringan khusus peta — hanya field yang dibutuhkan marker
+ */
+export const getMapMarkers = async (
+  _req: Request,
+  res: Response<ApiResponse>
+): Promise<void> => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('reports')
+      .select('id, title, category, lat, lng, urgency, votes_count, district, city, description, created_at')
+      .not('lat', 'is', null)
+      .not('lng', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      res.status(400).json({ success: false, message: 'Gagal mengambil marker peta.', error: error.message });
+      return;
+    }
+
+    const markers = (data || []).map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      category: r.category,
+      lat: r.lat,
+      lng: r.lng,
+      urgency: r.urgency ?? 0,
+      votesCount: r.votes_count ?? 0,
+      district: r.district,
+      city: r.city,
+      description: r.description?.slice(0, 100) || '',
+      createdAt: r.created_at,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: 'Marker peta berhasil diambil.',
+      data: markers,
+    });
+  } catch (err) {
+    logger.error('getMapMarkers:', err);
+    res.status(500).json({ success: false, message: 'Gagal mengambil marker peta.' });
+  }
+};
+
+/**
  * GET /api/reports
  * Mengambil daftar laporan dengan filter & pagination
  * Query params: ?category=Banjir&status=Menunggu&page=1&limit=10
@@ -362,27 +409,32 @@ export const getReportById = async (
       .eq('target_type', 'report')
       .order('created_at', { ascending: false });
 
-    // Ambil data user untuk setiap komentar
-    const commentsWithUser = await Promise.all(
-      (comments || []).map(async (comment: any) => {
-        const { data: userData } = await supabaseAdmin
-          .from('users_metadata')
-          .select('full_name, initials')
-          .eq('auth_id', comment.user_id)
-          .single();
+    // Batch-fetch all comment users in a single query (instead of N+1)
+    const commentUserIds = [...new Set((comments || []).map((c: any) => c.user_id).filter(Boolean))];
+    let userMap: Record<string, { full_name: string; initials: string }> = {};
+    if (commentUserIds.length > 0) {
+      const { data: usersData } = await supabaseAdmin
+        .from('users_metadata')
+        .select('auth_id, full_name, initials')
+        .in('auth_id', commentUserIds);
+      if (usersData) {
+        userMap = Object.fromEntries(usersData.map((u: any) => [u.auth_id, u]));
+      }
+    }
 
-        return {
-          id: comment.id,
-          userId: comment.user_id,
-          targetId: comment.target_id,
-          targetType: comment.target_type,
-          text: comment.text,
-          likes: comment.likes,
-          createdAt: comment.created_at,
-          user: userData ? { fullName: userData.full_name, initials: userData.initials } : undefined,
-        };
-      })
-    );
+    const commentsWithUser = (comments || []).map((comment: any) => {
+      const userData = userMap[comment.user_id];
+      return {
+        id: comment.id,
+        userId: comment.user_id,
+        targetId: comment.target_id,
+        targetType: comment.target_type,
+        text: comment.text,
+        likes: comment.likes,
+        createdAt: comment.created_at,
+        user: userData ? { fullName: userData.full_name, initials: userData.initials } : undefined,
+      };
+    });
 
     // Cek apakah user yang request sudah vote
     let hasVoted = false;
