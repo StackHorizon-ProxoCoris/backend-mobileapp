@@ -206,18 +206,67 @@ export const getMe = async (
     }
 
     // Ambil metadata lengkap dari tabel users_metadata
-    const { data, error } = await supabaseAdmin
+    const { data: metaResult, error } = await supabaseAdmin
       .from('users_metadata')
       .select('*')
       .eq('auth_id', req.user.id)
       .single();
 
+    let data = metaResult;
+
     if (error || !data) {
-      res.status(404).json({
-        success: false,
-        message: 'Data profil tidak ditemukan.',
-      });
-      return;
+      // Auto-create metadata untuk OAuth users (Google login)
+      const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(req.user.id);
+      if (authUser?.user) {
+        const fullName = authUser.user.user_metadata?.full_name
+          || authUser.user.user_metadata?.name
+          || authUser.user.email?.split('@')[0]
+          || 'User';
+        const initials = fullName
+          .split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2);
+
+        const { data: newMeta, error: insertError } = await supabaseAdmin
+          .from('users_metadata')
+          .insert({
+            auth_id: authUser.user.id,
+            role: 'user',
+            full_name: fullName,
+            initials,
+            email: authUser.user.email,
+            phone: authUser.user.phone || null,
+            bio: '',
+            district: '',
+            city: '',
+            province: '',
+            eco_points: 0,
+            current_badge: 'Warga Baru',
+            total_reports: 0,
+            total_actions: 0,
+            rank: 0,
+          })
+          .select('*')
+          .single();
+
+        if (insertError || !newMeta) {
+          res.status(404).json({
+            success: false,
+            message: 'Data profil tidak ditemukan.',
+          });
+          return;
+        }
+
+        data = newMeta;
+      } else {
+        res.status(404).json({
+          success: false,
+          message: 'Data profil tidak ditemukan.',
+        });
+        return;
+      }
     }
 
     // --- Hitung rank (posisi berdasarkan eco_points, descending) ---
