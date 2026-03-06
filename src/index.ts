@@ -33,6 +33,7 @@ import infoRoutes from './routes/info.routes';
 import bookmarkRoutes from './routes/bookmark.routes';
 import deviceTokenRoutes from './routes/device-token.routes';
 import adminRoutes from './routes/admin.routes';
+import bmkgRoutes from './routes/bmkg.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
@@ -102,6 +103,7 @@ app.use('/api/info', infoRoutes);
 app.use('/api/bookmarks', bookmarkRoutes);
 app.use('/api/device-tokens', deviceTokenRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/bmkg', bmkgRoutes);
 
 // ---- Root Route ----
 app.get('/', (_req, res) => {
