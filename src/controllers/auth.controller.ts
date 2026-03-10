@@ -134,7 +134,7 @@ export const login = async (
   res: Response<AuthResponse>
 ): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role: requestedRole } = req.body;
 
     // 1. Login via Supabase Auth
     const { data, error } = await supabasePublic.auth.signInWithPassword({
@@ -158,12 +158,34 @@ export const login = async (
       return;
     }
 
-    // 2. Ambil metadata user
+    // 2. Ambil metadata user (termasuk role untuk validasi)
     const { data: metaData } = await supabaseAdmin
       .from('users_metadata')
-      .select('full_name')
+      .select('full_name, role')
       .eq('auth_id', data.user.id)
       .single();
+
+    const actualRole = (metaData?.role || 'user') as UserRole;
+
+    // 3. Validasi role: pastikan role yang dipilih user sesuai dengan role di database
+    if (requestedRole && requestedRole !== actualRole) {
+      // Role label mapping untuk pesan error yang user-friendly
+      const roleLabels: Record<UserRole, string> = {
+        user: 'Masyarakat',
+        pemerintah: 'Pemerintah',
+        admin: 'Administrator',
+      };
+
+      logger.warn(
+        `Login role mismatch: user=${email} requested=${requestedRole} actual=${actualRole}`
+      );
+
+      res.status(403).json({
+        success: false,
+        message: `Akun Anda terdaftar sebagai ${roleLabels[actualRole]}. Silakan pilih role "${roleLabels[actualRole]}" untuk masuk.`,
+      });
+      return;
+    }
 
     res.status(200).json({
       success: true,
