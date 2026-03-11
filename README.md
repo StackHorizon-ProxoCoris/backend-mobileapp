@@ -323,8 +323,8 @@ Detailed technical documentation is maintained in the frontend repository's [`do
 
 ## Team
 
-**Team StackHorizon** — Telkom University
+**Team StackHorizon** — Universitas Klabat
 
 ---
 
-*Built with purpose for BCC 2026 — Bridging Gaps: Code for Earth, Intelligence for Justice, and Sustainability for Shaping Tomorrow*
+*Built with purpose for ProxoCoris 2026*
