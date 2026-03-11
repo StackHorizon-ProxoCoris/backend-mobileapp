@@ -6,7 +6,7 @@
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { logger } from '../config/logger';
-import { ApiResponse, CreateReportRequest, ReportResponse } from '../types';
+import { ApiResponse, CreateReportRequest, ReportResponse, UpdateReportStatusRequest } from '../types';
 import { createNotification, createBulkNotifications, getUsersInRadius, getGovUserIds } from '../services/notification.service';
 import { addEcoPoints, ECO_POINTS } from '../services/ecopoints.service';
 
@@ -560,7 +560,7 @@ export const toggleVote = async (
  * Update status laporan
  */
 export const updateReportStatus = async (
-  req: Request<{ id: string }>,
+  req: Request<{ id: string }, ApiResponse, UpdateReportStatusRequest>,
   res: Response<ApiResponse>
 ): Promise<void> => {
   try {
@@ -570,7 +570,7 @@ export const updateReportStatus = async (
     }
 
     const { id } = req.params;
-    const { status, respondedBy, estimatedCompletion } = req.body;
+    const { status, respondedBy, estimatedCompletion, resolutionNotes, resolutionImageUrl } = req.body;
 
     const validStatuses = ['Menunggu', 'Diverifikasi', 'Ditangani', 'Selesai'];
     if (!validStatuses.includes(status)) {
@@ -578,19 +578,47 @@ export const updateReportStatus = async (
       return;
     }
 
+    const { data: existingReport, error: existingReportError } = await supabaseAdmin
+      .from('reports')
+      .select('id, status, votes_count, verified_count, photos_count, category, user_id, title')
+      .eq('id', id)
+      .single();
+
+    if (existingReportError || !existingReport) {
+      res.status(404).json({ success: false, message: 'Laporan tidak ditemukan.' });
+      return;
+    }
+
+    // Idempotent guard: jangan timpa bukti penyelesaian bila status yang sama dikirim ulang.
+    if (existingReport.status === status) {
+      res.status(200).json({
+        success: true,
+        message: status === 'Selesai'
+          ? 'Laporan ini sudah berstatus "Selesai".'
+          : `Status laporan sudah "${status}".`,
+      });
+      return;
+    }
+
     const updateData: Record<string, any> = { status };
     if (respondedBy) updateData.responded_by = respondedBy;
     if (estimatedCompletion) updateData.estimated_completion = estimatedCompletion;
+    if (status === 'Selesai') {
+      updateData.resolution_notes = resolutionNotes?.trim() || null;
+      updateData.resolution_image_url = resolutionImageUrl?.trim() || null;
+    }
 
     // Set urgency ke 0 jika status Selesai, recalculate jika bukan
     if (status === 'Selesai') {
       updateData.urgency = 0;
     } else {
-      const { data: reportData } = await supabaseAdmin
-        .from('reports').select('votes_count, verified_count, photos_count, category').eq('id', id).single();
-      if (reportData) {
-        updateData.urgency = calculateUrgency({ ...reportData, status });
-      }
+      updateData.urgency = calculateUrgency({
+        votes_count: existingReport.votes_count,
+        verified_count: existingReport.verified_count,
+        photos_count: existingReport.photos_count,
+        category: existingReport.category,
+        status,
+      });
     }
 
     const { error } = await supabaseAdmin
@@ -606,14 +634,12 @@ export const updateReportStatus = async (
     // === NOTIF TRIGGER: Kirim ke pelapor asli ===
     (async () => {
       try {
-        const { data: report } = await supabaseAdmin
-          .from('reports').select('user_id, title').eq('id', id).single();
-        if (report && report.user_id !== req.user!.id) {
+        if (existingReport.user_id !== req.user!.id) {
           await createNotification({
-            userId: report.user_id,
+            userId: existingReport.user_id,
             type: 'status_update',
             title: 'Status Laporan Diperbarui',
-            message: `Laporan Anda "${report.title}" diubah ke status "${status}".`,
+            message: `Laporan Anda "${existingReport.title}" diubah ke status "${status}".`,
             refType: 'report',
             refId: id,
           });
@@ -849,6 +875,8 @@ function formatReport(row: any): ReportResponse {
     commentsCount: row.comments_count,
     respondedBy: row.responded_by,
     estimatedCompletion: row.estimated_completion,
+    resolutionNotes: row.resolution_notes,
+    resolutionImageUrl: row.resolution_image_url,
     photoUrls: row.photo_urls || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,

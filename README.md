@@ -28,7 +28,7 @@ REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) —
 |---|---|---|
 | Express.js | 5 | HTTP server and REST API framework |
 | TypeScript | 5.9 | Type-safe server development |
-| Supabase JS | 2.97 | PostgreSQL client and authentication |
+| Supabase JS | 2.97 | PostgreSQL client, authentication, and Realtime |
 | Google Gemini AI | 1.43 | AI chat assistant (disaster/safety education) |
 | Expo Server SDK | 6.0 | Push notification delivery to mobile clients |
 | Helmet | 8.1 | HTTP security headers |
@@ -83,7 +83,10 @@ Edit `.env` with your credentials (see [Environment Variables](#environment-vari
 4. Run database migrations:
 
 > [!NOTE]
-> Migration files are located in `src/database/migrations/`. Execute them sequentially against your Supabase PostgreSQL database using the Supabase SQL Editor or any PostgreSQL client.
+> Migration files are located in `src/database/migrations/`. Execute them sequentially (001–015) against your Supabase PostgreSQL database using the Supabase SQL Editor or any PostgreSQL client.
+
+> [!IMPORTANT]
+> Migration `008` (budget tables) has been removed from the codebase. If your database was created before this change, you may safely drop the `budget_projects` and `budget_dinas` tables. Migration `015` adds resolution proof columns to the `reports` table — make sure to run it for the Gov Resolution feature.
 
 ---
 
@@ -139,7 +142,7 @@ backend-mobileapp/
 │   │   └── env.ts                # Environment variable configuration
 │   ├── controllers/              # Request handlers (business logic)
 │   │   ├── auth.controller.ts    #   Authentication (login, register, profile)
-│   │   ├── report.controller.ts  #   Report CRUD, voting, verification, stats
+│   │   ├── report.controller.ts  #   Report CRUD, voting, verification, resolution proof
 │   │   ├── action.controller.ts  #   Positive action CRUD, join/leave
 │   │   ├── comment.controller.ts #   Comment creation and listing
 │   │   ├── chat.controller.ts    #   Gemini AI chat integration
@@ -148,7 +151,7 @@ backend-mobileapp/
 │   │   ├── device-token.controller.ts  # Push notification token registry
 │   │   ├── activity.controller.ts      # User activity history
 │   │   ├── area-status.controller.ts   # District-level area status
-│   │   ├── budget.controller.ts        # Government budget data
+│   │   ├── admin.controller.ts         # Super-admin: dashboard, users, moderation
 │   │   ├── info.controller.ts          # Info articles and education content
 │   │   ├── bookmark.controller.ts      # Report/action bookmarks
 │   │   ├── feedback.controller.ts      # User feedback submissions
@@ -164,7 +167,7 @@ backend-mobileapp/
 │   │   ├── device-token.routes.ts
 │   │   ├── activity.routes.ts
 │   │   ├── area-status.routes.ts
-│   │   ├── budget.routes.ts
+│   │   ├── admin.routes.ts
 │   │   ├── info.routes.ts
 │   │   ├── bookmark.routes.ts
 │   │   ├── feedback.routes.ts
@@ -177,11 +180,11 @@ backend-mobileapp/
 │   │   └── ecopoints.service.ts  #   Eco-points atomic increment via RPC
 │   ├── middleware/               # Express middleware
 │   │   ├── auth.middleware.ts    #   JWT token verification
-│   │   ├── role.middleware.ts    #   Role-based access control
+│   │   ├── role.middleware.ts    #   Role-based access control (user/pemerintah/admin)
 │   │   ├── validate.middleware.ts #  Request body validation
 │   │   └── error.middleware.ts   #   Global error handler
 │   ├── database/
-│   │   └── migrations/           # SQL migration files (001-014)
+│   │   └── migrations/           # SQL migration files (001–015)
 │   └── types/                    # TypeScript type definitions
 ├── .env.example                  # Environment variable template
 ├── package.json
@@ -248,6 +251,19 @@ All endpoints are prefixed with `/api`.
 | `PATCH` | `/api/notifications/:id/read` | Yes | Mark notification as read |
 | `PATCH` | `/api/notifications/read-all` | Yes | Mark all notifications as read |
 
+### Admin (Super-Admin Only)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/admin/dashboard` | Admin | System-wide dashboard summary |
+| `GET` | `/api/admin/activity-log` | Admin | System activity log |
+| `GET` | `/api/admin/users` | Admin | List all users |
+| `POST` | `/api/admin/users` | Admin | Create a new user account |
+| `GET` | `/api/admin/users/stats` | Admin | User statistics per role |
+| `GET` | `/api/admin/analytics` | Admin | Aggregate analytics dashboard |
+| `PATCH` | `/api/admin/users/:id/role` | Admin | Change user role |
+| `PATCH` | `/api/admin/users/:id/suspend` | Admin | Suspend or activate a user |
+
 ### Other Endpoints
 
 | Method | Endpoint | Auth | Description |
@@ -259,8 +275,6 @@ All endpoints are prefixed with `/api`.
 | `GET` | `/api/activities` | Yes | User activity history |
 | `POST` | `/api/upload` | Yes | Upload file to Supabase Storage |
 | `POST` | `/api/feedback` | Yes | Submit user feedback |
-| `GET` | `/api/budget/projects` | Yes | Budget projects data |
-| `GET` | `/api/budget/dinas` | Yes | Budget per department |
 | `POST` | `/api/bookmarks` | Yes | Toggle bookmark |
 | `GET` | `/api/bookmarks` | Yes | List user bookmarks |
 | `POST` | `/api/device-tokens` | Yes | Register push notification token |
@@ -271,7 +285,7 @@ All endpoints are prefixed with `/api`.
 
 ## Database
 
-SIAGA uses **Supabase** (PostgreSQL) with 14 migration files defining the schema:
+SIAGA uses **Supabase** (PostgreSQL) with 14 migration files defining the schema (migration 008 was removed when Budget Watch was deprecated):
 
 | Migration | Table/Function | Description |
 |---|---|---|
@@ -282,13 +296,13 @@ SIAGA uses **Supabase** (PostgreSQL) with 14 migration files defining the schema
 | `005` | `report_votes` | User votes/support on reports |
 | `006` | `feedbacks` | User feedback submissions |
 | `007` | `notifications` | In-app notification system |
-| `008` | `budget` | Government budget tracking |
 | `009` | — | User role column addition |
 | `010` | `report_verifications`, `action_joins`, `report_bookmarks` | Verification, join, and bookmark tables |
 | `011` | `info_articles` | Education and information articles |
 | `012` | `device_tokens` | Push notification token registry |
 | `013` | `increment_eco_points()` | Atomic PostgreSQL function for eco-points |
 | `014` | — | Government profile fields in users_metadata |
+| `015` | — | Resolution proof columns (`resolution_notes`, `resolution_image_url`) on reports |
 
 For the full Entity Relationship Diagram, see [ERD Documentation](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) in the frontend repository's `docs/ERD.md`.
 

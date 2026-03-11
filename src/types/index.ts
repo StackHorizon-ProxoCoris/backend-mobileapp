@@ -96,6 +96,14 @@ export interface CreateReportRequest {
   photoUrls?: string[];
 }
 
+export interface UpdateReportStatusRequest {
+  status: 'Menunggu' | 'Diverifikasi' | 'Ditangani' | 'Selesai';
+  respondedBy?: string;
+  estimatedCompletion?: string;
+  resolutionNotes?: string;
+  resolutionImageUrl?: string;
+}
+
 export interface ReportResponse {
   id: string;
   userId: string;
@@ -116,6 +124,8 @@ export interface ReportResponse {
   commentsCount: number;
   respondedBy: string | null;
   estimatedCompletion: string | null;
+  resolutionNotes?: string | null;
+  resolutionImageUrl?: string | null;
   photoUrls: string[];
   createdAt: string;
   updatedAt: string;
