@@ -345,6 +345,7 @@ export const getMe = async (
         email: data.email,
         phone: data.phone,
         bio: data.bio || '',
+        avatarUrl: data.avatar_url || '',
         // Gov-specific fields
         nip: data.nip || '',
         jabatan: data.jabatan || '',
@@ -399,10 +400,11 @@ export const updateProfile = async (
     }
 
     // Whitelist fields profile; field role dari payload diabaikan.
-    const { fullName, email, phone, bio, district, city, province, nip, jabatan, instansi, unitKerja, golongan, tmt } = req.body;
+    const { fullName, email, phone, bio, district, city, province, nip, jabatan, instansi, unitKerja, golongan, tmt, avatarUrl } = req.body;
 
     // Build update object — hanya field yang dikirim
     const updates: Record<string, any> = {};
+    if (avatarUrl !== undefined) updates.avatar_url = avatarUrl;
     if (fullName !== undefined) {
       updates.full_name = fullName;
       updates.initials = fullName
@@ -462,6 +464,7 @@ export const updateProfile = async (
         email: data.email,
         phone: data.phone,
         bio: data.bio,
+        avatarUrl: data.avatar_url || '',
         // Gov-specific fields
         nip: data.nip || '',
         jabatan: data.jabatan || '',

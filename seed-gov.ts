@@ -72,6 +72,7 @@ async function seed() {
 
     const { error: metaError } = await supabase.from('users_metadata').insert({
         auth_id: authData.user.id,
+        role: 'pemerintah',
         full_name: GOV_ACCOUNT.fullName,
         initials,
         email: GOV_ACCOUNT.email,
