@@ -1,8 +1,10 @@
 # SIAGA Backend API
 
+[English](README.md) | [Bahasa Indonesia](README.id.md)
+
 REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) — a civic technology platform connecting citizens and local government for transparent environmental and social issue management.
 
-> For full project overview, features, and technical documentation, see the [Frontend Repository](https://github.com/orgs/StackHorizon-ProxoCoris/repositories).
+> For full project overview, features, and technical documentation, see the [Frontend Repository](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp).
 
 ---
 
@@ -43,7 +45,7 @@ REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) —
 
 | Repository | Description |
 |---|---|
-| [Frontend App](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) | React Native / Expo mobile application |
+| [Frontend App](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp) | React Native / Expo mobile application |
 | **Backend API (this repo)** | Express.js REST API server |
 
 ---
@@ -59,25 +61,25 @@ REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) —
 
 ## Installation
 
-1. Clone the repository:
+Because SIAGA relies on both a frontend application and a backend API, **you must set up and run the backend first** before the frontend can function properly.
 
+### Part 1: Backend Setup (This Repository)
+
+1. Clone the repository:
 ```bash
-git clone https://github.com/StackHorizon-ProxoCoris/<backend-repo-name>.git
-cd <backend-repo-name>
+git clone https://github.com/StackHorizon-ProxoCoris/backend-mobileapp.git
+cd backend-mobileapp
 ```
 
 2. Install dependencies:
-
 ```bash
 npm install
 ```
 
 3. Configure environment variables:
-
 ```bash
 cp .env.example .env
 ```
-
 Edit `.env` with your credentials (see [Environment Variables](#environment-variables)).
 
 4. Run database migrations:
@@ -87,6 +89,28 @@ Edit `.env` with your credentials (see [Environment Variables](#environment-vari
 
 > [!IMPORTANT]
 > Migration `008` (budget tables) has been removed from the codebase. If your database was created before this change, you may safely drop the `budget_projects` and `budget_dinas` tables. Migration `015` adds resolution proof columns to the `reports` table — make sure to run it for the Gov Resolution feature.
+
+### Part 2: Frontend Setup
+
+Once the backend is configured, open a new terminal to set up the frontend:
+
+1. Clone the frontend repository:
+```bash
+git clone https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp.git
+cd frontend-mobileapp
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Configure Supabase Realtime for the frontend (instructions available in the [Frontend README](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp/blob/development/README.md)).
+
+4. Run the Expo dev server (ensure the backend server is already running!):
+```bash
+npx expo start
+```
 
 ---
 
@@ -304,13 +328,13 @@ SIAGA uses **Supabase** (PostgreSQL) with 14 migration files defining the schema
 | `014` | — | Government profile fields in users_metadata |
 | `015` | — | Resolution proof columns (`resolution_notes`, `resolution_image_url`) on reports |
 
-For the full Entity Relationship Diagram, see [ERD Documentation](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) in the frontend repository's `docs/ERD.md`.
+For the full Entity Relationship Diagram, see [ERD Documentation](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp) in the frontend repository's `docs/ERD.md`.
 
 ---
 
 ## Technical Documentation
 
-Detailed technical documentation is maintained in the frontend repository's [`docs/`](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) directory:
+Detailed technical documentation is maintained in the frontend repository's [`docs/`](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp) directory:
 
 | Document | Description |
 |---|---|
