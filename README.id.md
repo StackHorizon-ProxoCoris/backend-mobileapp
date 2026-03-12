@@ -4,7 +4,7 @@
 
 Server REST API untuk **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) â€” platform civic technology yang menghubungkan warga dan pemerintah daerah untuk manajemen masalah lingkungan dan sosial yang transparan.
 
-> Untuk gambaran umum proyek lengkap, fitur, dan dokumentasi teknis, lihat [Repositori Frontend](https://github.com/orgs/StackHorizon-ProxoCoris/repositories).
+> Untuk gambaran umum proyek lengkap, fitur, dan dokumentasi teknis, lihat [Repositori Frontend](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp).
 
 ---
 
@@ -45,7 +45,7 @@ Server REST API untuk **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) â
 
 | Repositori | Deskripsi |
 |---|---|
-| [Aplikasi Frontend](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) | Aplikasi mobile React Native / Expo |
+| [Aplikasi Frontend](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp) | Aplikasi mobile React Native / Expo |
 | **Backend API (repo ini)** | Server REST API Express.js |
 
 ---

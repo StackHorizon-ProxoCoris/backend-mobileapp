@@ -4,7 +4,7 @@
 
 REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) — a civic technology platform connecting citizens and local government for transparent environmental and social issue management.
 
-> For full project overview, features, and technical documentation, see the [Frontend Repository](https://github.com/orgs/StackHorizon-ProxoCoris/repositories).
+> For full project overview, features, and technical documentation, see the [Frontend Repository](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp).
 
 ---
 
@@ -45,7 +45,7 @@ REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) —
 
 | Repository | Description |
 |---|---|
-| [Frontend App](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) | React Native / Expo mobile application |
+| [Frontend App](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp) | React Native / Expo mobile application |
 | **Backend API (this repo)** | Express.js REST API server |
 
 ---
@@ -328,13 +328,13 @@ SIAGA uses **Supabase** (PostgreSQL) with 14 migration files defining the schema
 | `014` | — | Government profile fields in users_metadata |
 | `015` | — | Resolution proof columns (`resolution_notes`, `resolution_image_url`) on reports |
 
-For the full Entity Relationship Diagram, see [ERD Documentation](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) in the frontend repository's `docs/ERD.md`.
+For the full Entity Relationship Diagram, see [ERD Documentation](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp) in the frontend repository's `docs/ERD.md`.
 
 ---
 
 ## Technical Documentation
 
-Detailed technical documentation is maintained in the frontend repository's [`docs/`](https://github.com/orgs/StackHorizon-ProxoCoris/repositories) directory:
+Detailed technical documentation is maintained in the frontend repository's [`docs/`](https://github.com/StackHorizon-ProxoCoris/frontend-mobileapp) directory:
 
 | Document | Description |
 |---|---|
