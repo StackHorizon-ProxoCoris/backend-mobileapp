@@ -36,6 +36,8 @@ import bmkgRoutes from './routes/bmkg.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
+// Percayai 1 hop reverse proxy (Nginx) agar req.ip berisi IP client asli.
+app.set('trust proxy', 1);
 app.disable('etag');
 
 // ---- Middleware Global ----
@@ -64,10 +66,11 @@ if (config.isDev) {
 
 // Rate limiting: batasi request per 15 menit per IP
 // Dev: 1000 req (app fires ~7 concurrent calls per page load)
-// Prod: 200 req (lebih ketat tapi masih cukup untuk usage normal)
+// Prod: 500 req untuk menghindari false positive saat beberapa screen memicu burst request
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: config.isDev ? 1000 : 200,
+  max: config.isDev ? 1000 : 500,
+  skip: (req) => req.path === '/health',
   message: {
     success: false,
     message: 'Terlalu banyak request. Coba lagi dalam 15 menit.',
