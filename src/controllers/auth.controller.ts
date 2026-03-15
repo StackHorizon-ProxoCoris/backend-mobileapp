@@ -6,7 +6,7 @@
 import { Request, Response } from 'express';
 import { supabaseAdmin, supabasePublic } from '../config/supabase';
 import { logger } from '../config/logger';
-import { RegisterRequest, LoginRequest, AuthResponse, ApiResponse, UserRole } from '../types';
+import { RegisterRequest, LoginRequest, RefreshSessionRequest, AuthResponse, ApiResponse, UserRole } from '../types';
 
 /**
  * POST /api/auth/register
@@ -205,6 +205,65 @@ export const login = async (
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan saat login.',
+    });
+  }
+};
+
+/**
+ * POST /api/auth/refresh
+ * Memperbarui access token menggunakan refresh token Supabase
+ */
+export const refreshSession = async (
+  req: Request<{}, AuthResponse, RefreshSessionRequest>,
+  res: Response<AuthResponse>
+): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Refresh token wajib diisi.',
+      });
+      return;
+    }
+
+    const { data, error } = await supabasePublic.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error || !data.session || !data.user) {
+      res.status(401).json({
+        success: false,
+        message: 'Sesi login sudah berakhir. Silakan login kembali.',
+      });
+      return;
+    }
+
+    const { data: metaData } = await supabaseAdmin
+      .from('users_metadata')
+      .select('full_name')
+      .eq('auth_id', data.user.id)
+      .maybeSingle();
+
+    res.status(200).json({
+      success: true,
+      message: 'Sesi berhasil diperbarui.',
+      data: {
+        user: {
+          id: data.user.id,
+          email: data.user.email || '',
+          fullName: metaData?.full_name || data.user.user_metadata?.full_name || 'User',
+        },
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+      },
+    });
+  } catch (err) {
+    logger.error('RefreshSession:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal memperbarui sesi login.',
     });
   }
 };

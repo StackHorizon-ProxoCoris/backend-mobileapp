@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import { register, login, getMe, updateProfile, logout, updateSettings, changePassword, forgotPassword } from '../controllers/auth.controller';
+import { register, login, refreshSession, getMe, updateProfile, logout, updateSettings, changePassword, forgotPassword } from '../controllers/auth.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validateRequired, validateEmail, validatePassword } from '../middleware/validate.middleware';
 
@@ -24,6 +24,13 @@ router.post(
   validateRequired(['email', 'password']),
   validateEmail,
   login
+);
+
+// POST /api/auth/refresh — Perbarui session menggunakan refresh token
+router.post(
+  '/refresh',
+  validateRequired(['refreshToken']),
+  refreshSession
 );
 
 // GET /api/auth/me — Ambil profil user (perlu token)

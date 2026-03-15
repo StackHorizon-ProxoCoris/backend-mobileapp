@@ -26,6 +26,10 @@ export interface LoginRequest {
   role?: UserRole;
 }
 
+export interface RefreshSessionRequest {
+  refreshToken: string;
+}
+
 export interface AuthResponse {
   success: boolean;
   message: string;
