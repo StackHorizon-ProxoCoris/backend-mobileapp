@@ -7,7 +7,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -36,8 +36,8 @@ import bmkgRoutes from './routes/bmkg.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
-// Percayai 1 hop reverse proxy (Nginx) agar req.ip berisi IP client asli.
-app.set('trust proxy', 1);
+// Percayai reverse proxy agar req.ip / forwarded headers mengarah ke client asli.
+app.set('trust proxy', true);
 app.disable('etag');
 
 // ---- Middleware Global ----
@@ -64,13 +64,27 @@ if (config.isDev) {
   app.use(morgan('combined'));
 }
 
-// Rate limiting: batasi request per 15 menit per IP
-// Dev: 1000 req (app fires ~7 concurrent calls per page load)
-// Prod: 500 req untuk menghindari false positive saat beberapa screen memicu burst request
+const getClientRateLimitKey = (req: Request): string => {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const forwardedIp = Array.isArray(forwardedFor)
+    ? forwardedFor[0]
+    : forwardedFor?.split(',')[0]?.trim();
+  const realIpHeader = req.headers['x-real-ip'];
+  const realIp = Array.isArray(realIpHeader) ? realIpHeader[0] : realIpHeader;
+  const rawIp = forwardedIp || realIp || req.ip || req.socket.remoteAddress || '127.0.0.1';
+  return ipKeyGenerator(rawIp);
+};
+
+// Rate limiting: batasi request per 15 menit per client.
+// Dev: longgar untuk navigasi cepat dan upload.
+// Prod: cukup tinggi untuk burst normal mobile, tapi tetap membatasi abuse.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: config.isDev ? 1000 : 500,
-  skip: (req) => req.path === '/health',
+  max: config.isDev ? 2000 : 1500,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: getClientRateLimitKey,
+  skip: (req) => req.path === '/health' || req.method === 'OPTIONS',
   message: {
     success: false,
     message: 'Terlalu banyak request. Coba lagi dalam 15 menit.',
