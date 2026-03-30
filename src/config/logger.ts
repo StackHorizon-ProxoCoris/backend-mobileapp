@@ -5,6 +5,8 @@
 
 import chalk from 'chalk';
 
+import { config } from './env';
+
 /**
  * Logger sederhana dengan warna untuk development
  * Menggantikan console.log/error/warn biasa
@@ -32,7 +34,7 @@ export const logger = {
 
   /** Log debug — warna abu-abu (hanya di development) */
   debug: (context: string, ...args: any[]) => {
-    if (process.env.NODE_ENV !== 'production') {
+    if (config.isDev || config.rateLimitDebug) {
       console.log(chalk.gray('[DEBUG]'), chalk.gray(context), ...args);
     }
   },

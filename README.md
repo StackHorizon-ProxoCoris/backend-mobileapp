@@ -16,6 +16,8 @@ REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) —
 - [Installation](#installation)
 - [Environment Variables](#environment-variables)
 - [Running the Server](#running-the-server)
+- [Rate-Limit Policy](#rate-limit-policy)
+- [Verification Scripts](#verification-scripts)
 - [Project Structure](#project-structure)
 - [API Endpoints](#api-endpoints)
 - [Database](#database)
@@ -35,7 +37,7 @@ REST API server for **SIAGA** (Sistem Informasi dan Aksi untuk Gerakan Aman) —
 | Expo Server SDK | 6.0 | Push notification delivery to mobile clients |
 | Helmet | 8.1 | HTTP security headers |
 | Morgan | 1.10 | Request logging |
-| Express Rate Limit | 8.2 | API rate limiting (200 req/15min production) |
+| Express Rate Limit | 8.2 | Bucketed route-class API rate limiting |
 | Multer | 2.0 | Multipart file upload handling |
 | fast-xml-parser | 5.4 | BMKG XML data parsing |
 
@@ -122,11 +124,31 @@ Create a `.env` file based on `.env.example`:
 |---|---|---|
 | `PORT` | No | Server port (default: `3000`) |
 | `NODE_ENV` | No | `development` or `production` (default: `development`) |
+| `TRUST_PROXY` | No | Express `trust proxy` override. Supports `true/false`, hop count (e.g. `1`), or subnet/IP list. Default when unset: `false` in development, `1` in production |
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_ANON_KEY` | Yes | Supabase anonymous/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side operations) |
 | `JWT_SECRET` | Yes | Secret for JWT token validation (min 32 characters) |
 | `CORS_ORIGIN` | No | Allowed CORS origin (default: `http://localhost:8081`) |
+| `RATE_LIMIT_DEBUG` | No | Enable structured rate-limit key debug logs (default: `false`) |
+| `RATE_LIMIT_PUBLIC_READ_WINDOW_MS` | No | Window for the public-read bucket (default: `900000`) |
+| `RATE_LIMIT_PUBLIC_READ_MAX_DEV` | No | Dev max for the public-read bucket (default: `2000`) |
+| `RATE_LIMIT_PUBLIC_READ_MAX_PROD` | No | Prod max for the public-read bucket (default: `1500`) |
+| `RATE_LIMIT_PUBLIC_AUTH_WINDOW_MS` | No | Window for the public-auth bucket (default: `900000`) |
+| `RATE_LIMIT_PUBLIC_AUTH_MAX_DEV` | No | Dev max for the public-auth bucket (default: `150`) |
+| `RATE_LIMIT_PUBLIC_AUTH_MAX_PROD` | No | Prod max for the public-auth bucket (default: `80`) |
+| `RATE_LIMIT_AUTH_REFRESH_WINDOW_MS` | No | Window for the refresh bucket (default: `900000`) |
+| `RATE_LIMIT_AUTH_REFRESH_MAX_DEV` | No | Dev max for the refresh bucket (default: `300`) |
+| `RATE_LIMIT_AUTH_REFRESH_MAX_PROD` | No | Prod max for the refresh bucket (default: `150`) |
+| `RATE_LIMIT_UPLOAD_WINDOW_MS` | No | Window for the upload bucket (default: `900000`) |
+| `RATE_LIMIT_UPLOAD_MAX_DEV` | No | Dev max for the upload bucket (default: `200`) |
+| `RATE_LIMIT_UPLOAD_MAX_PROD` | No | Prod max for the upload bucket (default: `120`) |
+| `RATE_LIMIT_BMKG_WINDOW_MS` | No | Window for the BMKG bucket (default: `900000`) |
+| `RATE_LIMIT_BMKG_MAX_DEV` | No | Dev max for the BMKG bucket (default: `600`) |
+| `RATE_LIMIT_BMKG_MAX_PROD` | No | Prod max for the BMKG bucket (default: `300`) |
+| `RATE_LIMIT_AUTHENTICATED_GENERAL_WINDOW_MS` | No | Window for the authenticated general bucket (default: `900000`) |
+| `RATE_LIMIT_AUTHENTICATED_GENERAL_MAX_DEV` | No | Dev max for the authenticated general bucket (default: `1600`) |
+| `RATE_LIMIT_AUTHENTICATED_GENERAL_MAX_PROD` | No | Prod max for the authenticated general bucket (default: `1200`) |
 | `GEMINI_API_KEY` | Yes | Google AI Studio API key for Gemini chat |
 
 > [!CAUTION]
@@ -150,9 +172,55 @@ The server will start at `http://localhost:3000` by default.
 | `npm run build` | Compile TypeScript to JavaScript |
 | `npm start` | Run compiled production build |
 | `npm run lint` | Type-check without emitting output |
+| `npm run verify:rate-limit:isolation` | Build the backend, start a local server with low authenticated limits, and prove same-IP users do not share an authenticated bucket |
+| `npm run verify:rate-limit:routes` | Build the backend, start a local server with low test limits, and prove the route-class buckets are separated |
 
 > [!TIP]
-> In development mode, the rate limiter allows 1000 requests per 15 minutes per IP. In production, this is reduced to 200 to prevent abuse.
+> Rate-limiter identity is derived from Express-trusted request IP data (`req.ip` / `req.ips`) and not from raw forwarding headers. With default settings, development uses `TRUST_PROXY=false` and production assumes one trusted reverse proxy (`TRUST_PROXY=1`).
+
+---
+
+## Rate-Limit Policy
+
+The backend now uses named rate-limit buckets instead of one global `/api/*` limiter.
+
+| Bucket | Default (Dev) | Default (Prod) | Identity | Routes |
+|---|---|---|---|---|
+| `publicRead` | `2000 / 15 min` | `1500 / 15 min` | Express-trusted IP | Public `GET /api/reports*`, `/api/area-status`, `/api/info` |
+| `publicAuth` | `150 / 15 min` | `80 / 15 min` | Express-trusted IP | `/api/auth/register`, `/api/auth/login`, `/api/auth/forgot-password` |
+| `authRefresh` | `300 / 15 min` | `150 / 15 min` | Express-trusted IP | `/api/auth/refresh` |
+| `authenticatedGeneral` | `1600 / 15 min` | `1200 / 15 min` | `req.user.id`, fallback to trusted IP | Protected routes after `authMiddleware` |
+| `upload` | `200 / 15 min` | `120 / 15 min` | `req.user.id`, fallback to trusted IP | `/api/upload` |
+| `bmkg` | `600 / 15 min` | `300 / 15 min` | Express-trusted IP | `/api/bmkg/*` |
+
+> [!IMPORTANT]
+> The default production assumption is `TRUST_PROXY=1`, which means the app expects exactly one trusted reverse proxy in front of Express. If your deployment has a different hop count or a subnet-based trust chain, set `TRUST_PROXY` explicitly.
+
+> [!NOTE]
+> Rate-limit state is currently process-local. The provided smoke scripts validate a single backend instance and do not claim shared counters across multiple replicas.
+
+---
+
+## Verification Scripts
+
+Run the reproducible smoke checks from `backend-mobileapp/`:
+
+```bash
+npm run verify:rate-limit:isolation
+npm run verify:rate-limit:routes
+```
+
+What they do:
+
+- `verify:rate-limit:isolation` starts a temporary local backend with a very low authenticated bucket, registers two fresh users, and proves one user can hit `429` on `/api/auth/me` without causing the other user to share the same bucket.
+- `verify:rate-limit:routes` starts a temporary local backend with low per-bucket thresholds and proves `publicAuth`, `authRefresh`, `authenticatedGeneral`, `bmkg`, and `publicRead` remain separated.
+
+Both scripts:
+
+- build the backend first,
+- boot a throwaway local server with test overrides,
+- use the current `.env` Supabase credentials,
+- shut the local server down when the scenario finishes.
 
 ---
 
@@ -210,6 +278,8 @@ backend-mobileapp/
 │   ├── database/
 │   │   └── migrations/           # SQL migration files (001–015)
 │   └── types/                    # TypeScript type definitions
+├── scripts/
+│   └── rate-limit/               # Reproducible rate-limit smoke verification scripts
 ├── .env.example                  # Environment variable template
 ├── package.json
 └── tsconfig.json
@@ -227,38 +297,42 @@ All endpoints are prefixed with `/api`.
 |---|---|---|---|
 | `POST` | `/api/auth/register` | No | Register a new user |
 | `POST` | `/api/auth/login` | No | Login with email and password |
+| `POST` | `/api/auth/refresh` | No | Refresh an access token from a refresh token |
 | `GET` | `/api/auth/me` | Yes | Get current user profile |
 | `PATCH` | `/api/auth/profile` | Yes | Update user profile |
 | `POST` | `/api/auth/change-password` | Yes | Change password |
 | `PATCH` | `/api/auth/settings` | Yes | Update user settings |
+| `POST` | `/api/auth/logout` | Yes | Logout the current user |
+| `POST` | `/api/auth/forgot-password` | No | Trigger password reset email flow |
 
 ### Reports
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/reports` | Yes | List reports (with filters and pagination) |
-| `GET` | `/api/reports/stats` | Yes | Report statistics (total, pending, resolved) |
-| `GET` | `/api/reports/:id` | Yes | Get report detail |
+| `GET` | `/api/reports` | Optional | List reports (with filters and pagination) |
+| `GET` | `/api/reports/stats` | No | Report statistics (total, pending, resolved) |
+| `GET` | `/api/reports/:id` | Optional | Get report detail |
 | `POST` | `/api/reports` | Yes | Create a new report |
 | `PATCH` | `/api/reports/:id/status` | Yes | Update report status (gov only) |
 | `POST` | `/api/reports/:id/vote` | Yes | Toggle vote/support on a report |
+| `PATCH` | `/api/reports/:id/resolve-by-user` | Yes | Mark a report resolved by its reporter |
 | `POST` | `/api/reports/:id/verify` | Yes | Verify a report |
 
 ### Positive Actions
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/actions` | Yes | List positive actions |
-| `GET` | `/api/actions/:id` | Yes | Get action detail |
+| `GET` | `/api/actions` | No | List positive actions |
+| `GET` | `/api/actions/:id` | No | Get action detail |
 | `POST` | `/api/actions` | Yes | Create a new action |
 | `POST` | `/api/actions/:id/join` | Yes | Join an action |
-| `DELETE` | `/api/actions/:id/leave` | Yes | Leave an action |
+| `DELETE` | `/api/actions/:id/join` | Yes | Leave an action |
 
 ### Comments
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/comments/:targetType/:targetId` | Yes | List comments for a report or action |
+| `GET` | `/api/comments/:targetType/:targetId` | No | List comments for a report or action |
 | `POST` | `/api/comments` | Yes | Add a comment |
 
 ### AI Chat
@@ -293,14 +367,14 @@ All endpoints are prefixed with `/api`.
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/health` | No | Server health check |
-| `GET` | `/api/area-status` | Yes | District-level area safety status |
-| `GET` | `/api/info` | Yes | Info articles and education content |
-| `GET` | `/api/info/:id` | Yes | Article detail |
+| `GET` | `/api/area-status` | No | District-level area safety status |
+| `GET` | `/api/info` | No | Info articles and education content |
+| `GET` | `/api/info/:id` | No | Article detail |
 | `GET` | `/api/activities` | Yes | User activity history |
 | `POST` | `/api/upload` | Yes | Upload file to Supabase Storage |
 | `POST` | `/api/feedback` | Yes | Submit user feedback |
 | `POST` | `/api/bookmarks` | Yes | Toggle bookmark |
-| `GET` | `/api/bookmarks` | Yes | List user bookmarks |
+| `GET` | `/api/bookmarks/check` | Yes | Check whether a bookmark exists for the current user |
 | `POST` | `/api/device-tokens` | Yes | Register push notification token |
 | `DELETE` | `/api/device-tokens` | Yes | Unregister push token |
 | `GET` | `/api/bmkg/gempa-terkini` | No | Latest earthquake data from BMKG |

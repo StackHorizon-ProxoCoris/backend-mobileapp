@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "verify:rate-limit:isolation": "npm run build && node scripts/rate-limit/isolation.js",
+    "verify:rate-limit:routes": "npm run build && node scripts/rate-limit/routes.js"
   },
   "keywords": [],
   "author": "",

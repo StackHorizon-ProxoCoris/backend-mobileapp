@@ -7,13 +7,13 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
 import { config } from './config/env';
+import { createPublicReadRateLimiter } from './config/rate-limit';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 // Import routes
@@ -36,8 +36,9 @@ import bmkgRoutes from './routes/bmkg.routes';
 
 // ---- Inisialisasi Express ----
 const app = express();
-// Percayai reverse proxy agar req.ip / forwarded headers mengarah ke client asli.
-app.set('trust proxy', true);
+// Trust proxy ditentukan eksplisit via env parser.
+// Nilai ini menentukan bagaimana Express menghitung req.ip / req.ips.
+app.set('trust proxy', config.trustProxy);
 app.disable('etag');
 
 // ---- Middleware Global ----
@@ -64,33 +65,7 @@ if (config.isDev) {
   app.use(morgan('combined'));
 }
 
-const getClientRateLimitKey = (req: Request): string => {
-  const forwardedFor = req.headers['x-forwarded-for'];
-  const forwardedIp = Array.isArray(forwardedFor)
-    ? forwardedFor[0]
-    : forwardedFor?.split(',')[0]?.trim();
-  const realIpHeader = req.headers['x-real-ip'];
-  const realIp = Array.isArray(realIpHeader) ? realIpHeader[0] : realIpHeader;
-  const rawIp = forwardedIp || realIp || req.ip || req.socket.remoteAddress || '127.0.0.1';
-  return ipKeyGenerator(rawIp);
-};
-
-// Rate limiting: batasi request per 15 menit per client.
-// Dev: longgar untuk navigasi cepat dan upload.
-// Prod: cukup tinggi untuk burst normal mobile, tapi tetap membatasi abuse.
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: config.isDev ? 2000 : 1500,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  keyGenerator: getClientRateLimitKey,
-  skip: (req) => req.path === '/health' || req.method === 'OPTIONS',
-  message: {
-    success: false,
-    message: 'Terlalu banyak request. Coba lagi dalam 15 menit.',
-  },
-});
-app.use('/api/', limiter);
+const publicReadRateLimiter = createPublicReadRateLimiter();
 
 // Hindari cache untuk endpoint auth + reports agar mobile client selalu dapat data fresh
 const disableApiCache = (_req: Request, res: Response, next: NextFunction): void => {
@@ -101,6 +76,10 @@ const disableApiCache = (_req: Request, res: Response, next: NextFunction): void
 };
 app.use('/api/auth', disableApiCache);
 app.use('/api/reports', disableApiCache);
+
+// Public read buckets
+app.use('/api/area-status', publicReadRateLimiter);
+app.use('/api/info', publicReadRateLimiter);
 
 // ---- Routes ----
 app.use('/api/health', healthRoutes);
@@ -143,6 +122,7 @@ app.listen(config.port, () => {
   console.log(`   Env      : ${config.nodeEnv}`);
   console.log(`   URL      : http://localhost:${config.port}`);
   console.log(`   Health   : http://localhost:${config.port}/api/health`);
+  console.log(`   TrustProxy: ${String(config.trustProxy)}`);
   console.log('═══════════════════════════════════════════');
   console.log('');
 });
